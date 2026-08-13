@@ -1,7 +1,7 @@
 const modes = {
-  ball: { badge: 'ОСНОВНОЙ РЕЖИМ', title: 'Точная тренировочная стрельба', text: 'В барабан устанавливаются совместимые монтажные патроны, а с передней части — резиновые шары диаметром 10 мм. Используйте только в специально предназначенных и безопасных условиях.', value: '10 мм', label: 'Диаметр резинового шара', image: 'images/bulldog-modes.webp' },
-  blank: { badge: 'ЗВУКОВОЙ СИГНАЛ', title: 'Холостой выстрел до 120 дБ', text: 'БУЛЬДОГ можно использовать без резиновых шаров — только с совместимыми монтажными патронами. Обязательно используйте средства защиты слуха и соблюдайте дистанцию.', value: '120 дБ', label: 'Громкость холостого режима', image: 'images/bulldog-modes.webp' },
-  firework: { badge: 'ДОПОЛНИТЕЛЬНАЯ ОПЦИЯ', title: 'Запуск мини-фейерверков', text: 'Стальная насадка-мортирка устанавливается в ствол и поддерживает совместимые мини-фейерверки KURS. Насадка и фейерверки приобретаются отдельно.', value: '3 в 1', label: 'Многофункциональный формат', image: 'images/bulldog-accessories.webp' }
+  ball: { badge: 'ОСНОВНОЙ РЕЖИМ', title: 'Точная тренировочная стрельба', text: 'В барабан устанавливаются совместимые монтажные патроны, а с передней части — резиновые шары диаметром 10 мм. Используйте только в специально предназначенных и безопасных условиях.', value: '10 мм', label: 'Диаметр резинового шара', image: 'images/mode-rubber.webp', alt: 'БУЛЬДОГ KURS в режиме стрельбы резиновыми шарами' },
+  blank: { badge: 'ЗВУКОВОЙ СИГНАЛ', title: 'Холостой выстрел до 120 дБ', text: 'БУЛЬДОГ можно использовать без резиновых шаров — только с совместимыми монтажными патронами. Обязательно используйте средства защиты слуха и соблюдайте дистанцию.', value: '120 дБ', label: 'Громкость холостого режима', image: 'images/mode-blank.webp', alt: 'БУЛЬДОГ KURS в холостом режиме' },
+  firework: { badge: 'ДОПОЛНИТЕЛЬНАЯ ОПЦИЯ', title: 'Запуск мини-фейерверков', text: 'Стальная насадка-мортирка устанавливается в ствол и поддерживает совместимые мини-фейерверки KURS. Насадка и фейерверки приобретаются отдельно.', value: '3 в 1', label: 'Многофункциональный формат', image: 'images/mode-fireworks.webp', alt: 'Насадка-мортирка и мини-фейерверки KURS' }
 };
 
 const ageGate = document.querySelector('#ageGate');
@@ -39,7 +39,7 @@ document.querySelectorAll('.mode-tab').forEach(tab => tab.addEventListener('clic
   const mode = modes[tab.dataset.mode]; const copy = document.querySelector('#modeCopy'); const image = document.querySelector('.modes__image img');
   copy.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 380 });
   copy.innerHTML = `<span>${mode.badge}</span><h3>${mode.title}</h3><p>${mode.text}</p><div><b>${mode.value}</b><small>${mode.label}</small></div>`;
-  image.style.opacity = '0'; setTimeout(() => { image.src = mode.image; image.style.opacity = '1'; }, 220);
+  image.style.opacity = '0'; setTimeout(() => { image.src = mode.image; image.alt = mode.alt; image.style.opacity = '1'; }, 220);
 }));
 
 const menuButton = document.querySelector('.menu-toggle'); const nav = document.querySelector('.nav');
