@@ -363,3 +363,13 @@
 }
 
 .gallery{overflow:auto;scrollbar-gutter:stable}
+
+/* Product price directly below the order form. */
+.order__purchase{min-width:0}
+.product-price{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 30px;background:#fd7f02;color:#181715;border:1px solid #181715;border-top:0;box-shadow:0 22px 48px rgba(0,0,0,.13)}
+.product-price div{display:flex;flex-direction:column;gap:7px}
+.product-price span{font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}
+.product-price small{font-size:9px;font-weight:650;color:rgba(24,23,21,.66);letter-spacing:.04em}
+.product-price strong{font:600 clamp(38px,4vw,54px)/1 var(--display);white-space:nowrap;letter-spacing:-.02em}
+.product-price strong b{font-size:.48em;font-weight:600;margin-left:3px}
+@media(max-width:560px){.product-price{padding:21px 20px;gap:14px}.product-price small{max-width:140px}.product-price strong{font-size:38px}}
