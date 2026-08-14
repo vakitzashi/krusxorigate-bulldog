@@ -65,3 +65,35 @@ form.addEventListener('submit', event => {
   toast.classList.add('is-visible'); form.reset();
   setTimeout(() => toast.classList.remove('is-visible'), 4200);
 });
+
+const quickCylinder = document.querySelector('#quickCylinder');
+if (quickCylinder) {
+  const cylinderTrigger = quickCylinder.querySelector('.quick-cylinder__trigger');
+  let cylinderFrame = 0;
+  const updateCylinderRotation = () => {
+    quickCylinder.style.setProperty('--scroll-rotation', `${window.scrollY * .32}deg`);
+    cylinderFrame = 0;
+  };
+  window.addEventListener('scroll', () => {
+    if (!cylinderFrame) cylinderFrame = requestAnimationFrame(updateCylinderRotation);
+  }, { passive: true });
+  updateCylinderRotation();
+
+  cylinderTrigger.addEventListener('click', () => {
+    const open = quickCylinder.classList.toggle('is-open');
+    cylinderTrigger.setAttribute('aria-expanded', String(open));
+    cylinderTrigger.setAttribute('aria-label', open ? 'Закрыть быстрые действия' : 'Открыть быстрые действия');
+  });
+  quickCylinder.querySelectorAll('.quick-cylinder__actions a').forEach(link => link.addEventListener('click', () => {
+    quickCylinder.classList.remove('is-open');
+    cylinderTrigger.setAttribute('aria-expanded', 'false');
+    cylinderTrigger.setAttribute('aria-label', 'Открыть быстрые действия');
+  }));
+  document.addEventListener('pointerdown', event => {
+    if (!quickCylinder.contains(event.target)) {
+      quickCylinder.classList.remove('is-open');
+      cylinderTrigger.setAttribute('aria-expanded', 'false');
+      cylinderTrigger.setAttribute('aria-label', 'Открыть быстрые действия');
+    }
+  });
+}

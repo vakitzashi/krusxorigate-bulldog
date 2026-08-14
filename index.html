@@ -15,9 +15,11 @@
   <meta name="twitter:description" content="Полноразмерная механика. Металлический корпус. Три режима.">
   <meta name="twitter:image" content="images/og.png">
   <title>БУЛЬДОГ KURS — мощный характер</title>
+  <link rel="icon" href="images/kursXorigate.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="age-locked">
@@ -28,7 +30,7 @@
     <div class="age-gate__backdrop"></div>
     <div class="age-gate__panel">
       <div class="age-gate__mark" aria-hidden="true">
-        <img src="images/logo-dark.webp" alt="">
+        <img src="images/kursXorigate.png" alt="">
       </div>
       <p class="eyebrow">Доступ к материалам</p>
       <h2 id="ageTitle">Вам уже<br><span>18 лет?</span></h2>
@@ -42,16 +44,27 @@
   </div>
 
   <header class="header" id="header">
-    <a class="brand" href="#top" aria-label="БУЛЬДОГ KURS — на главную">
-      <img src="images/logo-dark.webp" alt="">
-      <span><b>БУЛЬДОГ</b><small>KURS · КСОИ</small></span>
+    <a class="brand brand--collab" href="#top" aria-label="KURS × ORIGATE — на главную">
+      <img src="images/kursXorigate.png" alt="KURS × ORIGATE">
     </a>
     <nav class="nav" aria-label="Главная навигация">
       <a href="#modes">Возможности</a>
       <a href="#specs">Характеристики</a>
       <a href="#kit">Комплект</a>
       <a href="#faq">Вопросы</a>
+      <span class="nav__contacts">
+        <a href="mailto:info@origate.com" aria-label="Написать на Email" title="info@origate.com"><i class="fa-solid fa-envelope" aria-hidden="true"></i></a>
+        <a href="tel:+78002502290" aria-label="Позвонить" title="+7 (800) 250-22-90"><i class="fa-solid fa-phone" aria-hidden="true"></i></a>
+        <a href="https://t.me/origate_bio" target="_blank" rel="noopener" aria-label="Telegram" title="Telegram"><i class="fa-brands fa-telegram" aria-hidden="true"></i></a>
+        <a href="https://wa.me/message/SS2ZXF72IT3LB1" target="_blank" rel="noopener" aria-label="WhatsApp" title="WhatsApp"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></a>
+      </span>
     </nav>
+    <div class="header-contacts" aria-label="Контакты">
+      <a href="mailto:info@origate.com" aria-label="Написать на Email" data-label="Email"><i class="fa-solid fa-envelope" aria-hidden="true"></i></a>
+      <a href="tel:+78002502290" aria-label="Позвонить" data-label="Телефон"><i class="fa-solid fa-phone" aria-hidden="true"></i></a>
+      <a href="https://t.me/origate_bio" target="_blank" rel="noopener" aria-label="Telegram" data-label="Telegram"><i class="fa-brands fa-telegram" aria-hidden="true"></i></a>
+      <a href="https://wa.me/message/SS2ZXF72IT3LB1" target="_blank" rel="noopener" aria-label="WhatsApp" data-label="WhatsApp"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></a>
+    </div>
     <a class="header__cta" href="#order">Оставить заявку <span>↗</span></a>
     <button class="menu-toggle" type="button" aria-label="Открыть меню" aria-expanded="false"><span></span><span></span></button>
   </header>
@@ -262,7 +275,7 @@
           <label>Телефон<input name="phone" type="tel" placeholder="+7 999 000-00-00" autocomplete="tel" required></label>
           <label>Город доставки<input name="city" type="text" placeholder="Москва" autocomplete="address-level2" required></label>
           <label class="select-label">Предпочтительный способ получения<select name="delivery"><option>Пункт выдачи СДЭК</option><option>Курьер СДЭК</option><option>Уточнить с менеджером</option></select></label>
-          <label class="checkbox"><input type="checkbox" required><span>Я старше 18 лет и согласен на обработку персональных данных</span></label>
+          <label class="checkbox"><input type="checkbox" required><span>Я старше 18 лет и согласен на обработку персональных данных в соответствии с <a href="privacy.html" target="_blank">Политикой конфиденциальности</a></span></label>
           <button class="button button--primary" type="submit">Отправить заявку <span>→</span></button>
           <small>Это визуальный прототип. Данные никуда не отправляются.</small>
         </form>
@@ -294,17 +307,59 @@
     </section>
   </main>
 
-  <footer class="footer">
-    <div class="brand"><img src="images/logo-dark.webp" alt=""><span><b>БУЛЬДОГ</b><small>KURS · КСОИ</small></span></div>
-    <p>Визуальный прототип сайта дистрибьютора. Не является публичной офертой.</p>
-    <a href="#top">Наверх ↑</a>
-    <small>* Информация о статусе изделия приводится согласно документации официального производителя KURS. Перед приобретением и использованием ознакомьтесь с паспортом, актуальным законодательством и правилами безопасности.</small>
+  <footer class="footer" id="contacts">
+    <div class="footer__main">
+      <div class="footer__brand">
+        <a href="#top" aria-label="KURS × ORIGATE — наверх"><img src="images/kursXorigate.png" alt="KURS × ORIGATE"></a>
+        <p>Официальная дистрибуция БУЛЬДОГ KURS.<br>Российское производство · гарантия 12 месяцев.</p>
+      </div>
+      <div class="footer__contacts">
+        <span class="footer__label">Связаться с нами</span>
+        <a href="mailto:info@origate.com"><i class="fa-solid fa-envelope" aria-hidden="true"></i><span><small>Email</small>info@origate.com</span></a>
+        <a href="tel:+78002502290"><i class="fa-solid fa-phone" aria-hidden="true"></i><span><small>Телефон</small>+7 (800) 250-22-90</span></a>
+        <a href="https://t.me/origate_bio" target="_blank" rel="noopener"><i class="fa-brands fa-telegram" aria-hidden="true"></i><span><small>Telegram</small>@origate_bio</span></a>
+        <a href="https://wa.me/message/SS2ZXF72IT3LB1" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i><span><small>WhatsApp</small>Написать в чат</span></a>
+      </div>
+      <div class="footer__legal-links">
+        <span class="footer__label">Правовая информация</span>
+        <a href="privacy.html">Политика конфиденциальности <i>↗</i></a>
+        <a href="offer.html">Публичная оферта <i>↗</i></a>
+        <a href="legal-docs/certificate-registry-extract.pdf" target="_blank" rel="noopener">Сертификаты и заключения <i>↗</i></a>
+        <a href="#top">Вернуться наверх <i>↑</i></a>
+      </div>
+    </div>
+    <div class="footer__company">
+      <p><b>ООО «ОРИГЕЙТ»</b><span>ИНН 9728153626</span><span>ОГРН 1257700154326</span></p>
+      <address>117485, г. Москва, ул. Бутлерова, 14к2</address>
+      <small>© 2026 ООО «ОРИГЕЙТ». Все права защищены.</small>
+    </div>
+    <div class="footer__notice">* Информация о статусе изделия приводится согласно документации официального производителя KURS. Перед приобретением и использованием ознакомьтесь с паспортом, актуальным законодательством и правилами безопасности. Материалы сайта не являются рекомендацией использовать изделие в противоправных целях.</div>
   </footer>
 
   <dialog class="gallery" id="gallery">
     <button class="gallery__close" type="button" aria-label="Закрыть">×</button>
     <img src="images/bulldog-specs.webp" alt="БУЛЬДОГ KURS — подробное изображение">
   </dialog>
+
+  <aside class="quick-cylinder" id="quickCylinder" aria-label="Быстрые действия">
+    <nav class="quick-cylinder__actions" aria-label="Быстрые ссылки">
+      <a href="https://t.me/origate_bio" target="_blank" rel="noopener" aria-label="Написать в Telegram" title="Telegram">
+        <i class="fa-brands fa-telegram" aria-hidden="true"></i>
+      </a>
+      <a href="#order" aria-label="Перейти к форме заявки" title="Оставить заявку">
+        <i class="fa-solid fa-cart-shopping" aria-hidden="true"></i>
+      </a>
+      <a href="#top" aria-label="Вернуться наверх" title="Наверх">
+        <i class="fa-solid fa-arrow-up" aria-hidden="true"></i>
+      </a>
+    </nav>
+    <button class="quick-cylinder__trigger" type="button" aria-expanded="false" aria-label="Открыть быстрые действия">
+      <span class="quick-cylinder__drum" aria-hidden="true">
+        <span class="quick-cylinder__loaded"></span>
+        <img class="quick-cylinder__face" src="images/barrel-transparent.png" alt="">
+      </span>
+    </button>
+  </aside>
 
   <div class="toast" id="toast" role="status"><b>Заявка сохранена в прототипе</b><span>В рабочей версии здесь будет отправка менеджеру.</span></div>
   <script src="script.js"></script>
