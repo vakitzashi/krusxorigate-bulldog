@@ -20,7 +20,7 @@ expect_true(sheet_headers() === $expectedHeaders, 'Google Sheets headers must ma
 expect_true(!in_array('#️⃣ ТОВАРА', sheet_headers(), true), 'The forbidden product-number column must not exist.');
 
 $config = array(
-    'product' => array('name' => 'КСОИ «БУЛЬДОГ»', 'sku' => 'TEST-SKU', 'price' => 55000),
+    'product' => array('name' => 'Револьвер Бульдог KURS кал.5.6/16 КСОИ', 'sku' => '00-00002209', 'price' => 55000),
     'promo_codes' => array('TEST10' => array('percent' => 10))
 );
 $input = array(
@@ -49,7 +49,7 @@ expect_true($first['order_number'] === '000001', 'First internal order number mu
 expect_true(find_order($db, $validated['idempotency_key'])['id'] === $first['id'], 'Idempotency lookup must return the existing order.');
 $row = sheet_row($first);
 expect_true(count($row) === 15, 'Google Sheets row must contain exactly 15 fields.');
-expect_true(strpos($row[10], 'TEST-SKU') !== false, 'Product field must include SKU.');
+expect_true(strpos($row[10], '00-00002209') !== false, 'Product field must include SKU.');
 $message = telegram_message($first);
 expect_true(strpos($message, 'Оформлен новый заказ!') !== false, 'Telegram message title is missing.');
 expect_true(strpos($message, '000001') !== false, 'Telegram message order number is missing.');
@@ -59,4 +59,3 @@ $db = null;
 @unlink($databasePath . '-wal');
 @unlink($databasePath . '-shm');
 echo "BACKEND_SMOKE_OK\n";
-

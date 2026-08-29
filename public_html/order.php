@@ -64,8 +64,8 @@ function require_config($configPath)
     $required = array(
         array('product', 'name'),
         array('product', 'sku'),
-        array('google', 'spreadsheet_id'),
-        array('google', 'credentials_file'),
+        array('google', 'webhook_url'),
+        array('google', 'webhook_secret'),
         array('telegram', 'bot_token'),
         array('telegram', 'chat_id')
     );
@@ -179,11 +179,6 @@ function update_delivery_state($db, $id, $column, $state, $error)
     }
 }
 
-function base64url($value)
-{
-    return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
-}
-
 function http_request($method, $url, $headers, $body)
 {
     $curl = curl_init($url);
@@ -191,6 +186,8 @@ function http_request($method, $url, $headers, $body)
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
     curl_setopt($curl, CURLOPT_TIMEOUT, 25);
+    curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($curl, CURLOPT_MAXREDIRS, 3);
     curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
     if ($body !== null) {
         curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
@@ -206,42 +203,6 @@ function http_request($method, $url, $headers, $body)
         throw new RuntimeException('Remote service returned HTTP ' . $status . ': ' . mb_substr($response, 0, 500, 'UTF-8'));
     }
     return $response;
-}
-
-function google_access_token($credentialsPath)
-{
-    if (!is_file($credentialsPath)) {
-        throw new RuntimeException('Google service account file is missing.');
-    }
-    $credentials = json_decode(file_get_contents($credentialsPath), true);
-    if (!is_array($credentials) || empty($credentials['client_email']) || empty($credentials['private_key'])) {
-        throw new RuntimeException('Google service account file is invalid.');
-    }
-    $now = time();
-    $header = base64url(json_encode(array('alg' => 'RS256', 'typ' => 'JWT')));
-    $claims = base64url(json_encode(array(
-        'iss' => $credentials['client_email'],
-        'scope' => 'https://www.googleapis.com/auth/spreadsheets',
-        'aud' => 'https://oauth2.googleapis.com/token',
-        'iat' => $now,
-        'exp' => $now + 3600
-    )));
-    $unsigned = $header . '.' . $claims;
-    $signature = '';
-    if (!openssl_sign($unsigned, $signature, $credentials['private_key'], OPENSSL_ALGO_SHA256)) {
-        throw new RuntimeException('Unable to sign Google authentication request.');
-    }
-    $assertion = $unsigned . '.' . base64url($signature);
-    $body = http_build_query(array(
-        'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        'assertion' => $assertion
-    ), '', '&');
-    $response = http_request('POST', 'https://oauth2.googleapis.com/token', array('Content-Type: application/x-www-form-urlencoded'), $body);
-    $decoded = json_decode($response, true);
-    if (!is_array($decoded) || empty($decoded['access_token'])) {
-        throw new RuntimeException('Google did not return an access token.');
-    }
-    return $decoded['access_token'];
 }
 
 function sheet_headers()
@@ -269,36 +230,21 @@ function sheet_row($order)
     );
 }
 
-function sheet_range($sheetName, $cells)
-{
-    $safeName = str_replace("'", "''", $sheetName);
-    return "'" . $safeName . "'!" . $cells;
-}
-
-function send_to_google_sheet($order, $config, $secretRoot)
+function send_to_google_sheet($order, $config)
 {
     $google = $config['google'];
-    $sheetName = empty($google['sheet_name']) ? 'Заказы' : $google['sheet_name'];
-    $credentialsPath = $google['credentials_file'];
-    if (substr($credentialsPath, 0, 1) !== '/' && !preg_match('/^[A-Za-z]:[\\\\\/]/', $credentialsPath)) {
-        $credentialsPath = $secretRoot . DIRECTORY_SEPARATOR . $credentialsPath;
+    $payload = json_encode(array(
+        'secret' => $google['webhook_secret'],
+        'headers' => sheet_headers(),
+        'row' => sheet_row($order),
+        'order_number' => $order['order_number']
+    ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $response = http_request('POST', $google['webhook_url'], array('Content-Type: application/json; charset=utf-8'), $payload);
+    $decoded = json_decode($response, true);
+    if (!is_array($decoded) || empty($decoded['ok'])) {
+        $message = is_array($decoded) && !empty($decoded['error']) ? $decoded['error'] : 'invalid Apps Script response';
+        throw new RuntimeException('Google Apps Script rejected the order: ' . $message);
     }
-    $token = google_access_token($credentialsPath);
-    $base = 'https://sheets.googleapis.com/v4/spreadsheets/' . rawurlencode($google['spreadsheet_id']) . '/values/';
-    $authHeaders = array('Authorization: Bearer ' . $token, 'Content-Type: application/json; charset=utf-8');
-    $headerRange = sheet_range($sheetName, 'A1:O1');
-    $existingRaw = http_request('GET', $base . rawurlencode($headerRange), $authHeaders, null);
-    $existing = json_decode($existingRaw, true);
-    $headers = sheet_headers();
-    if (empty($existing['values'])) {
-        $payload = json_encode(array('range' => $headerRange, 'majorDimension' => 'ROWS', 'values' => array($headers)), JSON_UNESCAPED_UNICODE);
-        http_request('PUT', $base . rawurlencode($headerRange) . '?valueInputOption=RAW', $authHeaders, $payload);
-    } elseif (!isset($existing['values'][0]) || $existing['values'][0] !== $headers) {
-        throw new RuntimeException('Google Sheet headers do not match the required order columns.');
-    }
-    $appendRange = sheet_range($sheetName, 'A:O');
-    $payload = json_encode(array('majorDimension' => 'ROWS', 'values' => array(sheet_row($order))), JSON_UNESCAPED_UNICODE);
-    http_request('POST', $base . rawurlencode($appendRange) . ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', $authHeaders, $payload);
 }
 
 function html_value($value)
@@ -480,7 +426,7 @@ try {
     $failures = array();
     if ($order['sheet_status'] !== 'sent') {
         try {
-            send_to_google_sheet($order, $config, $secretRoot);
+            send_to_google_sheet($order, $config);
             update_delivery_state($db, $order['id'], 'sheet_status', 'sent', '');
             $order['sheet_status'] = 'sent';
         } catch (Exception $exception) {
