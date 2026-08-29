@@ -73,10 +73,52 @@ document.querySelector('.gallery__close').addEventListener('click', () => galler
 gallery.addEventListener('click', event => { if (event.target === gallery) gallery.close(); });
 
 const form = document.querySelector('#orderForm'); const toast = document.querySelector('#toast');
-form.addEventListener('submit', event => {
+let toastTimer = 0;
+const showToast = (title, message, type = 'success') => {
+  clearTimeout(toastTimer);
+  toast.querySelector('b').textContent = title;
+  toast.querySelector('span').textContent = message;
+  toast.classList.toggle('is-error', type === 'error');
+  toast.classList.add('is-visible');
+  toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 6200);
+};
+const createOrderKey = () => {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
+};
+let orderKey = createOrderKey();
+form.addEventListener('submit', async event => {
   event.preventDefault();
-  toast.classList.add('is-visible'); form.reset();
-  setTimeout(() => toast.classList.remove('is-visible'), 4200);
+  if (!form.reportValidity()) return;
+
+  const button = form.querySelector('button[type="submit"]');
+  const originalButton = button.innerHTML;
+  const data = Object.fromEntries(new FormData(form).entries());
+  data.idempotency_key = orderKey;
+  button.disabled = true;
+  button.innerHTML = 'Отправляем… <span>→</span>';
+  form.setAttribute('aria-busy', 'true');
+
+  try {
+    const response = await fetch('order.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(data),
+      credentials: 'same-origin'
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.message || 'Не удалось отправить заявку. Попробуйте ещё раз.');
+
+    showToast('Заказ № ' + result.order_number + ' оформлен', 'Заявка принята. Мы свяжемся с вами для подтверждения.');
+    form.reset();
+    orderKey = createOrderKey();
+  } catch (error) {
+    showToast('Заявка не отправлена', error.message || 'Проверьте соединение и повторите попытку.', 'error');
+  } finally {
+    button.disabled = false;
+    button.innerHTML = originalButton;
+    form.removeAttribute('aria-busy');
+  }
 });
 
 const quickCylinder = document.querySelector('#quickCylinder');

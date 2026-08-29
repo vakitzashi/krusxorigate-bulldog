@@ -280,15 +280,22 @@
           <div class="delivery-line"><span>CDEK</span><p><b>Доставка по России</b><small>Стоимость и срок рассчитаем перед оплатой</small></p></div>
         </div>
         <div class="order__purchase">
-        <form class="order-form reveal" id="orderForm">
+        <form class="order-form reveal" id="orderForm" novalidate>
           <div class="order-form__head"><span>Заявка на БУЛЬДОГ KURS</span><b>Шаг 1 из 1</b></div>
-          <label>Ваше имя<input name="name" type="text" placeholder="Александр" autocomplete="name" required></label>
-          <label>Телефон<input name="phone" type="tel" placeholder="+7 999 000-00-00" autocomplete="tel" required></label>
+          <label>ФИО<input name="name" type="text" placeholder="Иванов Иван Иванович" autocomplete="name" minlength="5" maxlength="120" required></label>
+          <div class="order-form__row">
+            <label>Телефон<input name="phone" type="tel" inputmode="tel" placeholder="+7 999 000-00-00" autocomplete="tel" maxlength="30" required></label>
+            <label>Email<input name="email" type="email" inputmode="email" placeholder="mail@example.ru" autocomplete="email" maxlength="190" required></label>
+          </div>
           <label>Город доставки<input name="city" type="text" placeholder="Москва" autocomplete="address-level2" required></label>
-          <label class="select-label">Предпочтительный способ получения<select name="delivery"><option>Пункт выдачи СДЭК</option><option>Курьер СДЭК</option><option>Уточнить с менеджером</option></select></label>
-          <label class="checkbox"><input type="checkbox" required><span>Я старше 18 лет и согласен на обработку персональных данных в соответствии с <a href="privacy.html" target="_blank">Политикой конфиденциальности</a></span></label>
+          <label class="select-label">Способ получения<select name="delivery" required><option value="ПВЗ">Пункт выдачи СДЭК</option><option value="Курьер">Курьер СДЭК</option></select></label>
+          <label>Адрес или ПВЗ СДЭК<input name="address" type="text" placeholder="Адрес пункта выдачи или доставки" autocomplete="street-address" maxlength="250" required></label>
+          <label>Комментарий<textarea name="comment" placeholder="Дополнительная информация к заказу" maxlength="1000" rows="3"></textarea></label>
+          <label>Промокод<input name="promo_code" type="text" placeholder="Если есть" maxlength="40" autocapitalize="characters"></label>
+          <div class="order-form__trap" aria-hidden="true"><label>Ваш сайт<input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
+          <label class="checkbox"><input name="consent" type="checkbox" value="1" required><span>Я старше 18 лет и согласен на обработку персональных данных в соответствии с <a href="privacy.html" target="_blank">Политикой конфиденциальности</a></span></label>
           <button class="button button--primary" type="submit">Отправить заявку <span>→</span></button>
-          <small>Это визуальный прототип. Данные никуда не отправляются.</small>
+          <small>Нажимая кнопку, вы отправляете заявку продавцу. Менеджер свяжется с вами для подтверждения.</small>
         </form>
         <div class="product-price reveal" aria-label="Цена товара 55 000 рублей">
           <div><span>Цена БУЛЬДОГ KURS</span><small>Доставка рассчитывается отдельно</small></div>
@@ -377,7 +384,7 @@
     </button>
   </aside>
 
-  <div class="toast" id="toast" role="status"><b>Заявка сохранена в прототипе</b><span>В рабочей версии здесь будет отправка менеджеру.</span></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"><b></b><span></span></div>
   <script src="script.js"></script>
 </body>
 </html>

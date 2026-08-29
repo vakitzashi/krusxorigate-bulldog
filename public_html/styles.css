@@ -699,3 +699,12 @@
   .hero__bg:before,.hero__bg:after{display:none;animation:none}
   .accessories__cards{scroll-behavior:auto}
 }
+
+/* Production order form. */
+.order-form input,.order-form select,.order-form textarea{width:100%;background:transparent;border:0;border-bottom:1px solid #3e3f3a;color:#fff;padding:10px 0 13px;outline:none;border-radius:0;font:inherit;resize:vertical}
+.order-form input:focus,.order-form select:focus,.order-form textarea:focus{border-color:var(--orange)}
+.order-form__row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.order-form__trap{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.order-form .button:disabled{opacity:.55;cursor:wait}
+.toast.is-error{border-left-color:#a72d20}
+@media(max-width:680px){.order-form__row{grid-template-columns:1fr;gap:0}.order-form textarea{font-size:16px}}
