@@ -214,7 +214,8 @@ try {
     }
     if ($secretChanges.Count -gt 0) {
       $secretBackup = "secret/secret-before-$deployId.tar.gz"
-      Invoke-Remote ("tar --exclude='*.tar.gz' --exclude='.deploy-*' -czf {0} -C secret ." -f (Quote-Remote $secretBackup)) -Quiet
+      $secretBackupTemp = ".secret-before-$deployId.tar.gz"
+      Invoke-Remote ("tar --exclude='*.tar.gz' --exclude='.deploy-*' -czf {0} -C secret . && mv -f -- {0} {1}" -f (Quote-Remote $secretBackupTemp),(Quote-Remote $secretBackup)) -Quiet
       Write-Host "Создана копия: $secretBackup" -ForegroundColor Green
     }
 
