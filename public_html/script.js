@@ -43,8 +43,21 @@ document.querySelectorAll('.mode-tab').forEach(tab => tab.addEventListener('clic
 }));
 
 const menuButton = document.querySelector('.menu-toggle'); const nav = document.querySelector('.nav');
-menuButton.addEventListener('click', () => { const open = nav.classList.toggle('is-open'); menuButton.setAttribute('aria-expanded', String(open)); });
-nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => { nav.classList.remove('is-open'); menuButton.setAttribute('aria-expanded', 'false'); }));
+const closeMenu = () => {
+  nav.classList.remove('is-open');
+  document.body.classList.remove('menu-open');
+  menuButton.setAttribute('aria-expanded', 'false');
+  menuButton.setAttribute('aria-label', 'Открыть меню');
+};
+menuButton.addEventListener('click', () => {
+  const open = nav.classList.toggle('is-open');
+  document.body.classList.toggle('menu-open', open);
+  menuButton.setAttribute('aria-expanded', String(open));
+  menuButton.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+});
+nav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
+document.addEventListener('keydown', event => { if (event.key === 'Escape') closeMenu(); });
+window.addEventListener('resize', () => { if (window.innerWidth > 980) closeMenu(); }, { passive: true });
 
 document.querySelectorAll('.faq details').forEach(item => item.addEventListener('toggle', () => {
   if (!item.open) return;
