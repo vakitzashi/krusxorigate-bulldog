@@ -182,7 +182,13 @@ function update_delivery_state($db, $id, $column, $state, $error)
 function http_request($method, $url, $headers, $body)
 {
     $curl = curl_init($url);
-    curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $method);
+    if ($method === 'POST') {
+        curl_setopt($curl, CURLOPT_POST, true);
+    } elseif ($method === 'GET') {
+        curl_setopt($curl, CURLOPT_HTTPGET, true);
+    } else {
+        curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $method);
+    }
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
     curl_setopt($curl, CURLOPT_TIMEOUT, 25);
