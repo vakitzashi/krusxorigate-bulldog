@@ -64,6 +64,10 @@ function require_config($configPath)
     $required = array(
         array('product', 'name'),
         array('product', 'sku'),
+        array('database', 'host'),
+        array('database', 'name'),
+        array('database', 'user'),
+        array('database', 'password'),
         array('google', 'webhook_url'),
         array('google', 'webhook_secret'),
         array('telegram', 'bot_token'),
@@ -77,9 +81,57 @@ function require_config($configPath)
     return $config;
 }
 
-function open_database($path)
+function open_database($target)
 {
-    $db = new PDO('sqlite:' . $path);
+    if (is_array($target)) {
+        $port = empty($target['port']) ? 3306 : (int) $target['port'];
+        $dsn = 'mysql:host=' . $target['host'] . ';port=' . $port . ';dbname=' . $target['name'] . ';charset=utf8mb4';
+        $db = new PDO($dsn, $target['user'], $target['password'], array(
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_EMULATE_PREPARES => false
+        ));
+        $db->exec("SET time_zone = '+03:00'");
+        $db->exec(
+            'CREATE TABLE IF NOT EXISTS orders (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                order_number VARCHAR(20) NULL,
+                idempotency_key VARCHAR(100) NOT NULL,
+                created_at VARCHAR(40) NOT NULL,
+                created_msk VARCHAR(32) NOT NULL,
+                status VARCHAR(64) NOT NULL,
+                customer_name VARCHAR(190) NOT NULL,
+                phone VARCHAR(32) NOT NULL,
+                email VARCHAR(190) NOT NULL,
+                city VARCHAR(190) NOT NULL,
+                address VARCHAR(500) NOT NULL,
+                delivery_type VARCHAR(32) NOT NULL,
+                comment TEXT NOT NULL,
+                product_name VARCHAR(255) NOT NULL,
+                sku VARCHAR(64) NOT NULL,
+                quantity INT UNSIGNED NOT NULL,
+                subtotal INT UNSIGNED NOT NULL,
+                discount_percent DECIMAL(7,2) NOT NULL,
+                discount_amount INT UNSIGNED NOT NULL,
+                total INT UNSIGNED NOT NULL,
+                promo_code VARCHAR(64) NOT NULL,
+                cdek_track VARCHAR(128) NOT NULL,
+                sheet_status VARCHAR(20) NOT NULL,
+                telegram_status VARCHAR(20) NOT NULL,
+                last_error TEXT NOT NULL,
+                payload_json JSON NOT NULL,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_orders_order_number (order_number),
+                UNIQUE KEY uq_orders_idempotency_key (idempotency_key),
+                KEY idx_orders_created_at (created_at),
+                KEY idx_orders_status (status),
+                KEY idx_orders_phone (phone)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+        return $db;
+    }
+
+    $db = new PDO('sqlite:' . $target);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $db->exec('PRAGMA busy_timeout = 5000');
     $db->exec('PRAGMA journal_mode = WAL');
@@ -113,8 +165,8 @@ function open_database($path)
             payload_json TEXT NOT NULL
         )'
     );
-    if (is_file($path)) {
-        @chmod($path, 0600);
+    if (is_file($target)) {
+        @chmod($target, 0600);
     }
     return $db;
 }
@@ -423,7 +475,7 @@ try {
         fail_response(400, 'Некорректный JSON.', array());
     }
     $validated = validate_order_input($input, $config);
-    $db = open_database($secretRoot . DIRECTORY_SEPARATOR . 'orders.sqlite3');
+    $db = open_database($config['database']);
     $order = find_order($db, $validated['idempotency_key']);
     if (!$order) {
         $order = insert_order($db, $validated);
