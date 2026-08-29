@@ -579,3 +579,123 @@
   .hero__facts{display:none}
   .final-cta{min-height:560px}
 }
+
+/* Mobile-only cinematic hero and swipeable accessories. */
+@keyframes hero-mobile-pan{
+  0%,100%{background-position:54% center}
+  50%{background-position:70% center}
+}
+@keyframes hero-smoke-left{
+  0%,100%{opacity:.48;transform:translate3d(-9%,8%,0) scale(.72)}
+  12%{opacity:.22;transform:translate3d(4%,-2%,0) scale(1.08)}
+  20%,88%{opacity:0;transform:translate3d(12%,-8%,0) scale(1.24)}
+  94%{opacity:.2;transform:translate3d(-2%,3%,0) scale(.9)}
+}
+@keyframes hero-smoke-right{
+  0%,34%,68%,100%{opacity:0;transform:translate3d(9%,7%,0) scale(.75)}
+  44%{opacity:.18;transform:translate3d(2%,2%,0) scale(.92)}
+  50%{opacity:.46;transform:translate3d(-4%,-2%,0) scale(1.04)}
+  60%{opacity:.17;transform:translate3d(-12%,-9%,0) scale(1.25)}
+}
+
+@media (max-width:680px){
+  .hero__bg{
+    background-position:54% center;
+    transform:scale(1.09);
+    animation:hero-mobile-pan 24s cubic-bezier(.45,.05,.55,.95) infinite;
+    will-change:background-position;
+  }
+  .hero__bg:before,.hero__bg:after{
+    content:'';
+    position:absolute;
+    z-index:0;
+    bottom:-12%;
+    width:82%;
+    height:58%;
+    pointer-events:none;
+    opacity:0;
+    filter:blur(16px);
+    mix-blend-mode:screen;
+    will-change:transform,opacity;
+    background:
+      radial-gradient(ellipse at 30% 70%,rgba(226,224,216,.42) 0 9%,rgba(176,178,173,.2) 24%,transparent 58%),
+      radial-gradient(ellipse at 62% 42%,rgba(214,215,209,.28) 0 12%,rgba(150,153,149,.14) 28%,transparent 62%),
+      radial-gradient(ellipse at 48% 82%,rgba(236,232,222,.22),transparent 58%);
+  }
+  .hero__bg:before{left:-24%;animation:hero-smoke-left 24s ease-in-out infinite}
+  .hero__bg:after{right:-24%;animation:hero-smoke-right 24s ease-in-out infinite}
+
+  .accessories__layout{min-width:0}
+  .accessories__cards{
+    display:flex;
+    grid-template-columns:none;
+    gap:12px;
+    width:calc(100% + var(--mobile-gutter));
+    margin-right:calc(var(--mobile-gutter) * -1);
+    padding:0 var(--mobile-gutter) 12px 0;
+    overflow-x:auto;
+    overflow-y:hidden;
+    scroll-snap-type:x mandatory;
+    scroll-padding-left:0;
+    overscroll-behavior-inline:contain;
+    scrollbar-width:none;
+    background:transparent;
+    touch-action:pan-x pan-y pinch-zoom;
+    -webkit-overflow-scrolling:touch;
+  }
+  .accessories__cards::-webkit-scrollbar{display:none}
+  .accessories__cards article{
+    flex:0 0 calc(100% - 34px);
+    min-width:0;
+    min-height:0;
+    scroll-snap-align:start;
+    scroll-snap-stop:always;
+    border:1px solid var(--line);
+    transition:border-color .3s ease;
+  }
+  .accessories__cards article.is-active{border-color:rgba(253,127,2,.7)}
+  .accessories__cards article.is-carousel-clone{pointer-events:none}
+  .accessories__cards article img{height:auto;aspect-ratio:4/3}
+  .accessories__cards article>div{min-height:230px}
+  .accessories__carousel-ui{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:18px;
+    margin-top:12px;
+  }
+  .accessories__carousel-count{
+    flex:0 0 auto;
+    color:#777;
+    font:600 12px var(--display);
+    letter-spacing:.12em;
+  }
+  .accessories__carousel-count b{color:var(--orange);font-size:18px;font-weight:600}
+  .accessories__carousel-dots{display:flex;align-items:center;justify-content:flex-end;gap:1px}
+  .accessories__carousel-dot{
+    display:grid;
+    place-items:center;
+    width:32px;
+    height:40px;
+    padding:0;
+    border:0;
+    background:transparent;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .accessories__carousel-dot:before{
+    content:'';
+    width:18px;
+    height:2px;
+    background:#4a4b46;
+    transition:width .25s ease,background .25s ease;
+  }
+  .accessories__carousel-dot.is-active:before{width:28px;background:var(--orange)}
+  .accessories__carousel-dot:focus-visible{outline:1px solid var(--orange);outline-offset:-4px}
+}
+
+@media (max-width:680px) and (prefers-reduced-motion:reduce){
+  .hero__bg{animation:none;background-position:62% center;will-change:auto}
+  .hero__bg:before,.hero__bg:after{display:none;animation:none}
+  .accessories__cards{scroll-behavior:auto}
+}

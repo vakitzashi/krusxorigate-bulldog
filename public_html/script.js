@@ -110,3 +110,217 @@ if (quickCylinder) {
     }
   });
 }
+
+const accessoriesCarousel = document.querySelector('.accessories__cards');
+if (accessoriesCarousel) {
+  const mobileCarouselQuery = window.matchMedia('(max-width: 680px)');
+  const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let carouselItems = [];
+  let carouselClone = null;
+  let carouselUi = null;
+  let carouselDots = [];
+  let carouselCount = null;
+  let carouselTimer = 0;
+  let carouselResumeTimer = 0;
+  let carouselScrollTimer = 0;
+  let carouselObserver = null;
+  let carouselVisible = false;
+  let carouselInitialized = false;
+  let carouselProgrammatic = false;
+
+  const carouselStep = () => {
+    const first = carouselItems[0];
+    if (!first) return 0;
+    const styles = getComputedStyle(accessoriesCarousel);
+    const gap = parseFloat(styles.columnGap || styles.gap) || 0;
+    return first.getBoundingClientRect().width + gap;
+  };
+
+  const currentCarouselIndex = () => {
+    const step = carouselStep();
+    if (!step) return 0;
+    return Math.min(carouselItems.length, Math.max(0, Math.round(accessoriesCarousel.scrollLeft / step)));
+  };
+
+  const paintCarouselState = () => {
+    if (!carouselItems.length) return;
+    const rawIndex = currentCarouselIndex();
+    const index = rawIndex >= carouselItems.length ? 0 : rawIndex;
+    carouselItems.forEach((item, itemIndex) => item.classList.toggle('is-active', itemIndex === index));
+    carouselDots.forEach((dot, dotIndex) => {
+      const active = dotIndex === index;
+      dot.classList.toggle('is-active', active);
+      dot.setAttribute('aria-current', active ? 'true' : 'false');
+    });
+    if (carouselCount) {
+      carouselCount.innerHTML = '<b>' + String(index + 1).padStart(2, '0') + '</b> / ' + String(carouselItems.length).padStart(2, '0');
+    }
+  };
+
+  const stopCarousel = () => {
+    clearTimeout(carouselTimer);
+    clearTimeout(carouselResumeTimer);
+    carouselTimer = 0;
+    carouselResumeTimer = 0;
+  };
+
+  const scheduleCarousel = (delay = 4000) => {
+    clearTimeout(carouselTimer);
+    if (!carouselInitialized || !carouselVisible || reducedMotionQuery.matches) return;
+    carouselTimer = window.setTimeout(advanceCarousel, delay);
+  };
+
+  const goToCarouselItem = (index, behavior = 'smooth') => {
+    const step = carouselStep();
+    if (!step) return;
+    carouselProgrammatic = true;
+    accessoriesCarousel.scrollTo({ left: step * index, behavior });
+    window.setTimeout(() => {
+      carouselProgrammatic = false;
+      paintCarouselState();
+    }, behavior === 'smooth' ? 650 : 0);
+  };
+
+  function advanceCarousel() {
+    if (!carouselInitialized || !carouselVisible || reducedMotionQuery.matches) return;
+    const next = currentCarouselIndex() + 1;
+    goToCarouselItem(next);
+    if (next >= carouselItems.length) {
+      window.setTimeout(() => {
+        if (!carouselInitialized) return;
+        goToCarouselItem(0, 'auto');
+        scheduleCarousel(4000);
+      }, 720);
+    } else {
+      scheduleCarousel(4000);
+    }
+  }
+
+  const pauseCarouselForSwipe = () => {
+    if (!carouselInitialized) return;
+    carouselProgrammatic = false;
+    stopCarousel();
+  };
+
+  const resumeCarouselAfterSwipe = () => {
+    if (!carouselInitialized) return;
+    clearTimeout(carouselResumeTimer);
+    carouselResumeTimer = window.setTimeout(() => scheduleCarousel(0), 6000);
+  };
+
+  const handleCarouselScroll = () => {
+    if (!carouselInitialized) return;
+    paintCarouselState();
+    clearTimeout(carouselScrollTimer);
+    carouselScrollTimer = window.setTimeout(() => {
+      if (currentCarouselIndex() >= carouselItems.length) goToCarouselItem(0, 'auto');
+      paintCarouselState();
+      if (!carouselProgrammatic && !carouselTimer && !carouselResumeTimer) scheduleCarousel(4000);
+    }, 160);
+  };
+
+  const handleCarouselKey = event => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    pauseCarouselForSwipe();
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    const next = (currentCarouselIndex() + direction + carouselItems.length) % carouselItems.length;
+    goToCarouselItem(next);
+    resumeCarouselAfterSwipe();
+  };
+
+  const initAccessoriesCarousel = () => {
+    if (carouselInitialized || !mobileCarouselQuery.matches) return;
+    carouselItems = [...accessoriesCarousel.querySelectorAll(':scope > article:not(.is-carousel-clone)')];
+    if (carouselItems.length < 2) return;
+    carouselInitialized = true;
+    accessoriesCarousel.setAttribute('role', 'region');
+    accessoriesCarousel.setAttribute('aria-label', 'Карусель аксессуаров');
+    accessoriesCarousel.setAttribute('tabindex', '0');
+
+    carouselClone = carouselItems[0].cloneNode(true);
+    carouselClone.classList.add('is-carousel-clone');
+    carouselClone.setAttribute('aria-hidden', 'true');
+    accessoriesCarousel.append(carouselClone);
+
+    carouselUi = document.createElement('div');
+    carouselUi.className = 'accessories__carousel-ui';
+    carouselCount = document.createElement('span');
+    carouselCount.className = 'accessories__carousel-count';
+    const dots = document.createElement('div');
+    dots.className = 'accessories__carousel-dots';
+    dots.setAttribute('aria-label', 'Выбор аксессуара');
+    carouselDots = carouselItems.map((item, index) => {
+      const dot = document.createElement('button');
+      dot.className = 'accessories__carousel-dot';
+      dot.type = 'button';
+      dot.setAttribute('aria-label', 'Показать аксессуар ' + (index + 1));
+      dot.addEventListener('click', () => {
+        pauseCarouselForSwipe();
+        goToCarouselItem(index);
+        resumeCarouselAfterSwipe();
+      });
+      dots.append(dot);
+      return dot;
+    });
+    carouselUi.append(carouselCount, dots);
+    accessoriesCarousel.after(carouselUi);
+
+    accessoriesCarousel.addEventListener('pointerdown', pauseCarouselForSwipe, { passive: true });
+    accessoriesCarousel.addEventListener('pointerup', resumeCarouselAfterSwipe, { passive: true });
+    accessoriesCarousel.addEventListener('pointercancel', resumeCarouselAfterSwipe, { passive: true });
+    accessoriesCarousel.addEventListener('scroll', handleCarouselScroll, { passive: true });
+    accessoriesCarousel.addEventListener('keydown', handleCarouselKey);
+
+    carouselObserver = new IntersectionObserver(entries => {
+      carouselVisible = entries[0]?.isIntersecting ?? false;
+      if (carouselVisible) scheduleCarousel(3200);
+      else stopCarousel();
+    }, { threshold: .35 });
+    carouselObserver.observe(accessoriesCarousel);
+    paintCarouselState();
+  };
+
+  const destroyAccessoriesCarousel = () => {
+    if (!carouselInitialized) return;
+    stopCarousel();
+    clearTimeout(carouselScrollTimer);
+    carouselObserver?.disconnect();
+    accessoriesCarousel.removeEventListener('pointerdown', pauseCarouselForSwipe);
+    accessoriesCarousel.removeEventListener('pointerup', resumeCarouselAfterSwipe);
+    accessoriesCarousel.removeEventListener('pointercancel', resumeCarouselAfterSwipe);
+    accessoriesCarousel.removeEventListener('scroll', handleCarouselScroll);
+    accessoriesCarousel.removeEventListener('keydown', handleCarouselKey);
+    carouselClone?.remove();
+    carouselUi?.remove();
+    carouselItems.forEach(item => item.classList.remove('is-active'));
+    accessoriesCarousel.removeAttribute('role');
+    accessoriesCarousel.removeAttribute('aria-label');
+    accessoriesCarousel.removeAttribute('tabindex');
+    accessoriesCarousel.scrollLeft = 0;
+    carouselItems = [];
+    carouselDots = [];
+    carouselClone = null;
+    carouselUi = null;
+    carouselCount = null;
+    carouselObserver = null;
+    carouselVisible = false;
+    carouselInitialized = false;
+    carouselProgrammatic = false;
+  };
+
+  const syncAccessoriesCarousel = () => {
+    if (mobileCarouselQuery.matches) initAccessoriesCarousel();
+    else destroyAccessoriesCarousel();
+  };
+
+  if (mobileCarouselQuery.addEventListener) mobileCarouselQuery.addEventListener('change', syncAccessoriesCarousel);
+  else mobileCarouselQuery.addListener(syncAccessoriesCarousel);
+  if (reducedMotionQuery.addEventListener) {
+    reducedMotionQuery.addEventListener('change', () => {
+      stopCarousel();
+      if (!reducedMotionQuery.matches) scheduleCarousel(3200);
+    });
+  }
+  syncAccessoriesCarousel();
+}
