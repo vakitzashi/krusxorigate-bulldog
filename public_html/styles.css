@@ -724,3 +724,61 @@
 .delivery-quote.is-error .delivery-quote__head span,.delivery-quote.is-error>button{color:#b23825}
 .delivery-quote.is-ready{border-width:2px;padding:17px 19px;background:rgba(26,123,70,.08)}
 @media(max-width:680px){.delivery-quote{margin-top:16px;padding:17px}.delivery-quote.is-ready{padding:16px}.delivery-quote__head b{font-size:24px}}
+
+/* Order form readability and branded consent control. */
+.order-form label:not(.checkbox){font-size:11px;line-height:1.45}
+.order-form input,.order-form select,.order-form textarea{font-size:14px;line-height:1.5}
+.order-form .button{font-size:12px}
+.order-form>small{font-size:10px;line-height:1.55}
+.order-form .checkbox{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  margin:24px 0;
+  color:#92928c;
+  font-size:12px;
+  line-height:1.55;
+  cursor:pointer;
+}
+.order-form .checkbox input{
+  appearance:none;
+  -webkit-appearance:none;
+  display:grid;
+  place-items:center;
+  width:20px;
+  min-width:20px;
+  height:20px;
+  flex:0 0 20px;
+  margin:1px 0 0;
+  padding:0;
+  border:1px solid #686963;
+  border-radius:0;
+  background:#171815;
+  cursor:pointer;
+  transition:border-color .18s ease,background .18s ease,box-shadow .18s ease;
+}
+.order-form .checkbox input:before{
+  content:'';
+  width:9px;
+  height:5px;
+  border-left:2px solid #181715;
+  border-bottom:2px solid #181715;
+  transform:translateY(-1px) rotate(-45deg) scale(0);
+  transition:transform .16s cubic-bezier(.2,.9,.25,1.25);
+}
+.order-form .checkbox input:checked{border-color:var(--orange);background:var(--orange);box-shadow:0 0 0 3px rgba(253,127,2,.12)}
+.order-form .checkbox input:checked:before{transform:translateY(-1px) rotate(-45deg) scale(1)}
+.order-form .checkbox input:focus-visible{outline:1px solid var(--orange);outline-offset:4px}
+.order-form .checkbox span{min-width:0}
+
+/* Prevent the fixed quick actions and edge-to-edge mobile sections from creating a root horizontal scrollbar. */
+html{max-width:100%;overflow-x:hidden}
+body{width:100%;max-width:100%;overflow-x:clip}
+.gallery{overflow-x:hidden}
+
+@media(max-width:680px){
+  .order-form label:not(.checkbox){font-size:11px}
+  .order-form input,.order-form select,.order-form textarea{font-size:16px}
+  .order-form .checkbox{gap:11px;margin:22px 0;font-size:11px}
+  .order-form>small{font-size:10px}
+}
