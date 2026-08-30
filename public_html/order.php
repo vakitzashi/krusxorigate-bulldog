@@ -74,6 +74,8 @@ function require_config($configPath)
         array('cdek', 'client_secret'),
         array('cdek', 'origin'),
         array('cdek', 'package'),
+        array('one_c', 'username'),
+        array('one_c', 'password'),
         array('google', 'webhook_url'),
         array('google', 'webhook_secret'),
         array('telegram', 'bot_token'),
@@ -142,6 +144,10 @@ function open_database($target)
                 cdek_tariff_name VARCHAR(190) NOT NULL DEFAULT \'\',
                 cdek_uuid VARCHAR(64) NOT NULL DEFAULT \'\',
                 cdek_status VARCHAR(20) NOT NULL DEFAULT \'disabled\',
+                onec_status VARCHAR(20) NOT NULL DEFAULT \'disabled\',
+                onec_export_batch VARCHAR(64) NOT NULL DEFAULT \'\',
+                onec_exported_at DATETIME NULL,
+                onec_acknowledged_at DATETIME NULL,
                 cdek_track VARCHAR(128) NOT NULL,
                 sheet_status VARCHAR(20) NOT NULL,
                 telegram_status VARCHAR(20) NOT NULL,
@@ -167,7 +173,11 @@ function open_database($target)
             'cdek_tariff_code' => 'INT UNSIGNED NOT NULL DEFAULT 0 AFTER `cdek_city_code`',
             'cdek_tariff_name' => 'VARCHAR(190) NOT NULL DEFAULT \'\' AFTER `cdek_tariff_code`',
             'cdek_uuid' => 'VARCHAR(64) NOT NULL DEFAULT \'\' AFTER `cdek_tariff_name`',
-            'cdek_status' => 'VARCHAR(20) NOT NULL DEFAULT \'disabled\' AFTER `cdek_uuid`'
+            'cdek_status' => 'VARCHAR(20) NOT NULL DEFAULT \'disabled\' AFTER `cdek_uuid`',
+            'onec_status' => 'VARCHAR(20) NOT NULL DEFAULT \'disabled\' AFTER `cdek_status`',
+            'onec_export_batch' => 'VARCHAR(64) NOT NULL DEFAULT \'\' AFTER `onec_status`',
+            'onec_exported_at' => 'DATETIME NULL AFTER `onec_export_batch`',
+            'onec_acknowledged_at' => 'DATETIME NULL AFTER `onec_exported_at`'
         );
         foreach ($columns as $column => $definition) {
             mysql_ensure_column($db, 'orders', $column, $definition);
@@ -200,6 +210,69 @@ function open_database($target)
                 UNIQUE KEY uq_delivery_quotes_token (quote_token),
                 KEY idx_delivery_quotes_lookup (client_hash, city, delivery_type, created_at),
                 KEY idx_delivery_quotes_expires (expires_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+        $db->exec(
+            'CREATE TABLE IF NOT EXISTS product_inventory (
+                sku VARCHAR(64) NOT NULL,
+                quantity INT UNSIGNED NOT NULL DEFAULT 0,
+                site_reserved INT UNSIGNED NOT NULL DEFAULT 0,
+                sync_state VARCHAR(20) NOT NULL DEFAULT \'unknown\',
+                source_file VARCHAR(255) NOT NULL DEFAULT \'\',
+                source_hash CHAR(64) NOT NULL DEFAULT \'\',
+                synced_at DATETIME NULL,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (sku)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+        $db->exec(
+            'CREATE TABLE IF NOT EXISTS inventory_reservations (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                order_id BIGINT UNSIGNED NOT NULL,
+                sku VARCHAR(64) NOT NULL,
+                quantity INT UNSIGNED NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT \'local\',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                acknowledged_at DATETIME NULL,
+                transferred_at DATETIME NULL,
+                released_at DATETIME NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_inventory_reservations_order (order_id),
+                KEY idx_inventory_reservations_sku_status (sku, status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+        $db->exec(
+            'CREATE TABLE IF NOT EXISTS onec_product_map (
+                external_id VARCHAR(190) NOT NULL,
+                sku VARCHAR(64) NOT NULL,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (external_id),
+                KEY idx_onec_product_map_sku (sku)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+        $db->exec(
+            'CREATE TABLE IF NOT EXISTS onec_exchange_sessions (
+                session_hash CHAR(64) NOT NULL,
+                exchange_type VARCHAR(20) NOT NULL,
+                current_batch VARCHAR(64) NOT NULL DEFAULT \'\',
+                expires_at DATETIME NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (session_hash),
+                KEY idx_onec_exchange_sessions_expiry (expires_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+        $db->exec(
+            'CREATE TABLE IF NOT EXISTS onec_exchange_log (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                exchange_type VARCHAR(20) NOT NULL,
+                mode_name VARCHAR(20) NOT NULL,
+                filename VARCHAR(255) NOT NULL DEFAULT \'\',
+                status VARCHAR(20) NOT NULL,
+                details TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_onec_exchange_log_created (created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
         return $db;
@@ -243,11 +316,46 @@ function open_database($target)
             cdek_tariff_name TEXT NOT NULL,
             cdek_uuid TEXT NOT NULL,
             cdek_status TEXT NOT NULL,
+            onec_status TEXT NOT NULL,
+            onec_export_batch TEXT NOT NULL,
+            onec_exported_at TEXT,
+            onec_acknowledged_at TEXT,
             cdek_track TEXT NOT NULL,
             sheet_status TEXT NOT NULL,
             telegram_status TEXT NOT NULL,
             last_error TEXT NOT NULL,
             payload_json TEXT NOT NULL
+        )'
+    );
+    $db->exec(
+        'CREATE TABLE IF NOT EXISTS product_inventory (
+            sku TEXT PRIMARY KEY,
+            quantity INTEGER NOT NULL DEFAULT 0,
+            site_reserved INTEGER NOT NULL DEFAULT 0,
+            sync_state TEXT NOT NULL DEFAULT \'unknown\',
+            source_file TEXT NOT NULL DEFAULT \'\',
+            source_hash TEXT NOT NULL DEFAULT \'\',
+            synced_at TEXT
+        )'
+    );
+    $db->exec(
+        'CREATE TABLE IF NOT EXISTS inventory_reservations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL UNIQUE,
+            sku TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT \'local\',
+            created_at TEXT,
+            acknowledged_at TEXT,
+            transferred_at TEXT,
+            released_at TEXT
+        )'
+    );
+    $db->exec(
+        'CREATE TABLE IF NOT EXISTS onec_product_map (
+            external_id TEXT PRIMARY KEY,
+            sku TEXT NOT NULL,
+            updated_at TEXT
         )'
     );
     if (is_file($target)) {
@@ -275,6 +383,35 @@ function find_delivery_quote($db, $token)
     return $row ? $row : null;
 }
 
+class OutOfStockException extends RuntimeException
+{
+}
+
+function ensure_inventory_row($db, $sku)
+{
+    if ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+        $statement = $db->prepare(
+            'INSERT IGNORE INTO product_inventory (sku, quantity, site_reserved, sync_state) VALUES (:sku, 0, 0, \'unknown\')'
+        );
+    } else {
+        $statement = $db->prepare(
+            'INSERT OR IGNORE INTO product_inventory (sku, quantity, site_reserved, sync_state) VALUES (:sku, 0, 0, \'unknown\')'
+        );
+    }
+    $statement->execute(array(':sku' => $sku));
+}
+
+function inventory_row($db, $sku, $forUpdate)
+{
+    ensure_inventory_row($db, $sku);
+    $sql = 'SELECT *, CASE WHEN quantity > site_reserved THEN quantity - site_reserved ELSE 0 END AS available FROM product_inventory WHERE sku = :sku';
+    if ($forUpdate && $db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') $sql .= ' FOR UPDATE';
+    $statement = $db->prepare($sql);
+    $statement->execute(array(':sku' => $sku));
+    $row = $statement->fetch(PDO::FETCH_ASSOC);
+    return $row ? $row : null;
+}
+
 function mark_delivery_quote_used($db, $token, $orderId)
 {
     $statement = $db->prepare(
@@ -287,6 +424,10 @@ function insert_order($db, $order)
 {
     $db->beginTransaction();
     try {
+        $inventory = inventory_row($db, $order['sku'], true);
+        if ($inventory['sync_state'] === 'synced' && (int) $inventory['available'] < (int) $order['quantity']) {
+            throw new OutOfStockException('Product is out of stock.');
+        }
         $statement = $db->prepare(
             'INSERT INTO orders (
                 order_number, idempotency_key, created_at, created_msk, status,
@@ -294,14 +435,16 @@ function insert_order($db, $order)
                 product_name, sku, quantity, subtotal, discount_percent, discount_amount,
                 total, promo_code, delivery_amount, delivery_quote_token, delivery_period_min, delivery_period_max,
                 pvz_code, pvz_address, cdek_city_code, cdek_tariff_code, cdek_tariff_name,
-                cdek_uuid, cdek_status, cdek_track, sheet_status, telegram_status, last_error, payload_json
+                cdek_uuid, cdek_status, onec_status, onec_export_batch, onec_exported_at, onec_acknowledged_at,
+                cdek_track, sheet_status, telegram_status, last_error, payload_json
             ) VALUES (
                 NULL, :idempotency_key, :created_at, :created_msk, :status,
                 :customer_name, :phone, :email, :city, :address, :delivery_type, :comment,
                 :product_name, :sku, :quantity, :subtotal, :discount_percent, :discount_amount,
                 :total, :promo_code, :delivery_amount, :delivery_quote_token, :delivery_period_min, :delivery_period_max,
                 :pvz_code, :pvz_address, :cdek_city_code, :cdek_tariff_code, :cdek_tariff_name,
-                :cdek_uuid, :cdek_status, :cdek_track, :sheet_status, :telegram_status, :last_error, :payload_json
+                :cdek_uuid, :cdek_status, :onec_status, :onec_export_batch, :onec_exported_at, :onec_acknowledged_at,
+                :cdek_track, :sheet_status, :telegram_status, :last_error, :payload_json
             )'
         );
         $params = array();
@@ -315,6 +458,20 @@ function insert_order($db, $order)
         $number = str_pad((string) $id, 6, '0', STR_PAD_LEFT);
         $update = $db->prepare('UPDATE orders SET order_number = :number WHERE id = :id');
         $update->execute(array(':number' => $number, ':id' => $id));
+        $reserve = $db->prepare(
+            'UPDATE product_inventory SET site_reserved = site_reserved + :quantity WHERE sku = :sku'
+        );
+        $reserve->execute(array(':quantity' => (int) $order['quantity'], ':sku' => $order['sku']));
+        $reservation = $db->prepare(
+            'INSERT INTO inventory_reservations (order_id, sku, quantity, status, created_at)
+             VALUES (:order_id, :sku, :quantity, \'local\', :created_at)'
+        );
+        $reservation->execute(array(
+            ':order_id' => $id,
+            ':sku' => $order['sku'],
+            ':quantity' => (int) $order['quantity'],
+            ':created_at' => date('Y-m-d H:i:s')
+        ));
         $db->commit();
         return find_order($db, $order['idempotency_key']);
     } catch (Exception $exception) {
@@ -575,6 +732,10 @@ function validate_order_input($input, $config, $quote)
         'cdek_tariff_name' => $quote['tariff_name'],
         'cdek_uuid' => '',
         'cdek_status' => empty($config['cdek']['create_shipments']) ? 'disabled' : 'pending',
+        'onec_status' => empty($config['one_c']['export_orders']) ? 'disabled' : 'pending',
+        'onec_export_batch' => '',
+        'onec_exported_at' => null,
+        'onec_acknowledged_at' => null,
         'cdek_track' => '',
         'sheet_status' => 'pending',
         'telegram_status' => 'pending',
@@ -683,6 +844,8 @@ try {
         'delivery_amount' => (int) $order['delivery_amount'],
         'total' => (int) $order['total']
     ));
+} catch (OutOfStockException $exception) {
+    fail_response(409, 'Товар закончился. Отправка заявки временно недоступна.', array('stock' => 'Нет в наличии.'));
 } catch (Exception $exception) {
     error_log('Order API error: ' . $exception->getMessage());
     fail_response(503, 'Сервис оформления временно недоступен. Попробуйте позже.', array());

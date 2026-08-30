@@ -80,6 +80,49 @@ document.querySelector('.gallery__close').addEventListener('click', () => galler
 gallery.addEventListener('click', event => { if (event.target === gallery) gallery.close(); });
 
 const form = document.querySelector('#orderForm'); const toast = document.querySelector('#toast');
+const orderSubmitButton = form.querySelector('button[type="submit"]');
+const orderSubmitDefault = orderSubmitButton.innerHTML;
+const productStock = document.querySelector('#productStock');
+let stockState = 'unknown';
+const renderStock = result => {
+  productStock.classList.remove('is-available', 'is-out');
+  if (!result?.synced) {
+    stockState = 'unknown';
+    productStock.textContent = 'Остаток 1С: ожидает синхронизации';
+    if (!form.hasAttribute('aria-busy')) {
+      orderSubmitButton.disabled = false;
+      orderSubmitButton.innerHTML = orderSubmitDefault;
+    }
+    return;
+  }
+  if (result.available > 0) {
+    stockState = 'available';
+    productStock.classList.add('is-available');
+    productStock.textContent = 'В наличии: ' + result.available + ' шт.';
+    if (!form.hasAttribute('aria-busy')) {
+      orderSubmitButton.disabled = false;
+      orderSubmitButton.innerHTML = orderSubmitDefault;
+    }
+  } else {
+    stockState = 'out';
+    productStock.classList.add('is-out');
+    productStock.textContent = 'Нет в наличии';
+    orderSubmitButton.disabled = true;
+    orderSubmitButton.innerHTML = 'Нет в наличии';
+  }
+};
+const loadStock = async () => {
+  try {
+    const response = await fetch('stock.php', { headers: { Accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error('Stock check failed');
+    renderStock(result);
+    return result;
+  } catch (error) {
+    return null;
+  }
+};
+loadStock();
 let toastTimer = 0;
 const showToast = (title, message, type = 'success') => {
   clearTimeout(toastTimer);
@@ -193,12 +236,18 @@ form.addEventListener('submit', async event => {
   event.preventDefault();
   if (!form.reportValidity()) return;
 
+  await loadStock();
+  if (stockState === 'out') {
+    showToast('Товар закончился', 'Отправка заявки временно недоступна.', 'error');
+    return;
+  }
+
   if (!deliveryQuoteToken.value || quotedSignature !== deliverySignature()) {
     const calculated = await calculateDelivery(false);
     if (!calculated) return;
   }
 
-  const button = form.querySelector('button[type="submit"]');
+  const button = orderSubmitButton;
   const originalButton = button.innerHTML;
   const data = Object.fromEntries(new FormData(form).entries());
   data.idempotency_key = orderKey;
@@ -221,11 +270,14 @@ form.addEventListener('submit', async event => {
     invalidateDeliveryQuote();
     deliveryQuoteStatus.textContent = 'Укажите город, адрес и способ получения в форме.';
     orderKey = createOrderKey();
+    await loadStock();
   } catch (error) {
     showToast('Заявка не отправлена', error.message || 'Проверьте соединение и повторите попытку.', 'error');
   } finally {
-    button.disabled = false;
-    button.innerHTML = originalButton;
+    if (stockState !== 'out') {
+      button.disabled = false;
+      button.innerHTML = originalButton;
+    }
     form.removeAttribute('aria-busy');
   }
 });

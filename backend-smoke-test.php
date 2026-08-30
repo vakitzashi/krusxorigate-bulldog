@@ -2,6 +2,7 @@
 
 define('ORDER_API_LIBRARY_ONLY', true);
 require __DIR__ . '/public_html/order.php';
+require __DIR__ . '/public_html/onec-lib.php';
 
 function expect_true($condition, $message)
 {
@@ -22,7 +23,8 @@ expect_true(!in_array('#️⃣ ТОВАРА', sheet_headers(), true), 'The forbi
 $config = array(
     'product' => array('name' => 'Револьвер Бульдог KURS кал.5.6/16 КСОИ', 'sku' => '00-00002209', 'price' => 55000),
     'promo_codes' => array('TEST10' => array('percent' => 10)),
-    'cdek' => array('create_shipments' => false)
+    'cdek' => array('create_shipments' => false),
+    'one_c' => array('export_orders' => false)
 );
 $input = array(
     'name' => 'Иван Григорян Олегович',
@@ -60,6 +62,7 @@ expect_true($validated['email'] === 'test@example.com', 'Email must be normalize
 expect_true($validated['discount_amount'] === 5500 && $validated['total'] === 50100, 'Promo and delivery total must be calculated server-side.');
 expect_true($validated['delivery_amount'] === 600 && $validated['pvz_code'] === 'ABN1', 'The signed CDEK quote must populate the order.');
 expect_true($validated['cdek_status'] === 'disabled', 'Shipment creation must remain disabled by the feature flag.');
+expect_true($validated['onec_status'] === 'disabled', '1C order export must remain disabled by the feature flag.');
 $shipment = cdek_create_shipment($config, sys_get_temp_dir(), $validated);
 expect_true(!$shipment['created'] && $shipment['reason'] === 'feature_flag_disabled', 'The feature flag must block POST /orders.');
 
@@ -68,6 +71,43 @@ $db = open_database($databasePath);
 $first = insert_order($db, $validated);
 expect_true($first['order_number'] === '000001', 'First internal order number must be 000001.');
 expect_true(find_order($db, $validated['idempotency_key'])['id'] === $first['id'], 'Idempotency lookup must return the existing order.');
+$inventory = inventory_row($db, $validated['sku'], false);
+expect_true((int) $inventory['site_reserved'] === 1, 'A submitted order must reserve one product locally.');
+$emptyXml = onec_orders_xml($db, $config, array('current_batch' => '', 'session_hash' => str_repeat('0', 64)));
+expect_true(strpos($emptyXml, '<Документ>') === false, 'The 1C feature flag must suppress real order export.');
+$db->prepare("UPDATE orders SET onec_status = 'sent', onec_export_batch = 'test-batch' WHERE id = :id")
+    ->execute(array(':id' => $first['id']));
+$enabledConfig = $config;
+$enabledConfig['one_c']['export_orders'] = true;
+$orderXml = onec_orders_xml($db, $enabledConfig, array('current_batch' => 'test-batch', 'session_hash' => str_repeat('1', 64)));
+expect_true(strpos($orderXml, '<Артикул>00-00002209</Артикул>') !== false, 'CommerceML order must contain the exact SKU.');
+expect_true(strpos($orderXml, '<Наименование>Резервировать товар</Наименование>') !== false, 'CommerceML order must request reservation.');
+expect_true(strpos($orderXml, '<Ид>ORDER_DELIVERY</Ид>') !== false, 'CommerceML order must contain delivery as a service.');
+$db->prepare("UPDATE orders SET onec_status = 'disabled', onec_export_batch = '' WHERE id = :id")
+    ->execute(array(':id' => $first['id']));
+$commerceMlPath = tempnam(sys_get_temp_dir(), 'bulldog-1c-test-');
+$commerceMl = '<?xml version="1.0" encoding="UTF-8"?>'
+    . '<КоммерческаяИнформация ВерсияСхемы="2.10">'
+    . '<Каталог><Товары><Товар><Ид>onec-product-guid</Ид><Артикул>00-00002209</Артикул></Товар></Товары></Каталог>'
+    . '<ПакетПредложений><Предложения><Предложение><Ид>onec-product-guid</Ид><Количество>3</Количество></Предложение></Предложения></ПакетПредложений>'
+    . '</КоммерческаяИнформация>';
+file_put_contents($commerceMlPath, $commerceMl);
+$imported = onec_import_catalog($db, $config, $commerceMlPath, 'offers.xml');
+expect_true($imported['mapped'] === 1 && $imported['stock_updates'] === 1, 'CommerceML import must map SKU and update stock.');
+$syncedInventory = inventory_row($db, $validated['sku'], false);
+expect_true((int) $syncedInventory['quantity'] === 3 && (int) $syncedInventory['available'] === 2, 'Imported stock must account for the local reservation.');
+@unlink($commerceMlPath);
+$db->prepare("UPDATE product_inventory SET quantity = 1, sync_state = 'synced' WHERE sku = :sku")
+    ->execute(array(':sku' => $validated['sku']));
+$second = $validated;
+$second['idempotency_key'] = '22345678-1234-1234-1234-123456789012';
+$outOfStockBlocked = false;
+try {
+    insert_order($db, $second);
+} catch (OutOfStockException $exception) {
+    $outOfStockBlocked = true;
+}
+expect_true($outOfStockBlocked, 'A synced zero available balance must block the next order atomically.');
 $row = sheet_row($first);
 expect_true(count($row) === 15, 'Google Sheets row must contain exactly 15 fields.');
 expect_true(strpos($row[10], '00-00002209') !== false, 'Product field must include SKU.');

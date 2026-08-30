@@ -28,6 +28,13 @@ return array(
         'insurance_value' => 55000,
         'geocoder_user_agent' => 'ORIGATE-Tactic/1.0 (info@origate.com)'
     ),
+    'one_c' => array(
+        'username' => 'ЛОГИН_ОБМЕНА_1С',
+        'password' => 'ДЛИННЫЙ_СЛУЧАЙНЫЙ_ПАРОЛЬ_ОБМЕНА_1С',
+        'export_orders' => false,
+        'file_limit' => 5242880,
+        'session_ttl' => 3600
+    ),
     'google' => array(
         'webhook_url' => 'https://script.google.com/macros/s/DEPLOYMENT_ID/exec',
         'webhook_secret' => 'ОТДЕЛЬНЫЙ_ДЛИННЫЙ_СЛУЧАЙНЫЙ_КЛЮЧ'

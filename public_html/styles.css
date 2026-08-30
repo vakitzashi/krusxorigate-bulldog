@@ -784,3 +784,9 @@ body{width:100%;max-width:100%;overflow-x:hidden!important;overscroll-behavior-x
   .order-form .checkbox{gap:11px;margin:22px 0;font-size:11px}
   .order-form>small{font-size:10px}
 }
+
+.product-price .product-stock{margin-top:4px;color:#181715;font-weight:850;text-transform:uppercase;letter-spacing:.09em}
+.product-price .product-stock:before{content:'';display:inline-block;width:6px;height:6px;margin-right:7px;border-radius:50%;background:#181715;vertical-align:1px}
+.product-price .product-stock.is-available:before{background:#1a7b46;box-shadow:0 0 0 3px rgba(26,123,70,.15)}
+.product-price .product-stock.is-out{color:#7a160d}
+.product-price .product-stock.is-out:before{background:#7a160d;box-shadow:0 0 0 3px rgba(122,22,13,.13)}
