@@ -15,11 +15,13 @@ if (!$configPath) $configPath = $secretRoot . DIRECTORY_SEPARATOR . 'order-confi
 try {
     $config = require_config($configPath);
     $db = open_database($config['database']);
+    $config = load_commerce_config($db, $config);
     $inventory = inventory_row($db, $config['product']['sku'], false);
     $synced = $inventory && $inventory['sync_state'] === 'synced';
     json_response(200, array(
         'ok' => true,
         'sku' => $config['product']['sku'],
+        'price' => (int) $config['product']['price'],
         'synced' => $synced,
         'quantity' => $synced ? (int) $inventory['quantity'] : null,
         'reserved' => $synced ? (int) $inventory['site_reserved'] : null,
@@ -31,4 +33,3 @@ try {
     error_log('Stock API error: ' . $exception->getMessage());
     fail_response(503, 'Не удалось проверить остаток. Попробуйте позже.', array());
 }
-

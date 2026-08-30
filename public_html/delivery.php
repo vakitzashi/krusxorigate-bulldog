@@ -41,6 +41,8 @@ try {
     }
 
     $db = open_database($config['database']);
+    $config = load_commerce_config($db, $config);
+    $config['cdek']['insurance_value'] = (int) $config['product']['price'];
     $clientSource = (isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '') . '|'
         . (isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '') . '|'
         . $config['google']['webhook_secret'];
@@ -127,4 +129,3 @@ try {
         : 'Не удалось рассчитать доставку. Уточните адрес или попробуйте позже.';
     fail_response(503, $message, array());
 }
-

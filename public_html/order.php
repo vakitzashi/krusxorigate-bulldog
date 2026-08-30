@@ -275,6 +275,47 @@ function open_database($target)
                 KEY idx_onec_exchange_log_created (created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
+        $db->exec(
+            'CREATE TABLE IF NOT EXISTS product_settings (
+                sku VARCHAR(64) NOT NULL,
+                price INT UNSIGNED NOT NULL,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (sku)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+        $db->exec(
+            'CREATE TABLE IF NOT EXISTS promo_codes (
+                code VARCHAR(64) NOT NULL,
+                discount_type VARCHAR(16) NOT NULL,
+                discount_value DECIMAL(12,2) NOT NULL,
+                active TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (code),
+                KEY idx_promo_codes_active (active)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+        $db->exec(
+            'CREATE TABLE IF NOT EXISTS admin_sessions (
+                session_hash CHAR(64) NOT NULL,
+                username VARCHAR(100) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (session_hash),
+                KEY idx_admin_sessions_expiry (expires_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+        $db->exec(
+            'CREATE TABLE IF NOT EXISTS admin_login_attempts (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                client_hash CHAR(64) NOT NULL,
+                success TINYINT(1) NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_admin_attempts_client_time (client_hash, created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
         return $db;
     }
 
@@ -358,10 +399,64 @@ function open_database($target)
             updated_at TEXT
         )'
     );
+    $db->exec('CREATE TABLE IF NOT EXISTS product_settings (sku TEXT PRIMARY KEY, price INTEGER NOT NULL, updated_at TEXT)');
+    $db->exec('CREATE TABLE IF NOT EXISTS promo_codes (code TEXT PRIMARY KEY, discount_type TEXT NOT NULL, discount_value REAL NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at TEXT, updated_at TEXT)');
+    $db->exec('CREATE TABLE IF NOT EXISTS admin_sessions (session_hash TEXT PRIMARY KEY, username TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT, last_seen_at TEXT)');
+    $db->exec('CREATE TABLE IF NOT EXISTS admin_login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, client_hash TEXT NOT NULL, success INTEGER NOT NULL DEFAULT 0, created_at TEXT)');
     if (is_file($target)) {
         @chmod($target, 0600);
     }
     return $db;
+}
+
+function ensure_commerce_defaults($db, $config)
+{
+    $sku = (string) $config['product']['sku'];
+    $price = max(1, (int) $config['product']['price']);
+    if ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+        $statement = $db->prepare('INSERT IGNORE INTO product_settings (sku, price) VALUES (:sku, :price)');
+    } else {
+        $statement = $db->prepare('INSERT OR IGNORE INTO product_settings (sku, price, updated_at) VALUES (:sku, :price, CURRENT_TIMESTAMP)');
+    }
+    $statement->execute(array(':sku' => $sku, ':price' => $price));
+    $seedPromos = $statement->rowCount() > 0;
+
+    $promos = isset($config['promo_codes']) && is_array($config['promo_codes']) ? $config['promo_codes'] : array();
+    if (!$seedPromos) $promos = array();
+    foreach ($promos as $code => $rule) {
+        if (!is_array($rule)) continue;
+        $normalized = mb_strtoupper(trim((string) $code), 'UTF-8');
+        if ($normalized === '') continue;
+        $type = !empty($rule['percent']) ? 'percent' : 'amount';
+        $value = $type === 'percent' ? (float) $rule['percent'] : (float) (isset($rule['amount']) ? $rule['amount'] : 0);
+        if ($value <= 0) continue;
+        if ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+            $statement = $db->prepare('INSERT IGNORE INTO promo_codes (code, discount_type, discount_value, active) VALUES (:code, :type, :value, 1)');
+        } else {
+            $statement = $db->prepare('INSERT OR IGNORE INTO promo_codes (code, discount_type, discount_value, active, created_at, updated_at) VALUES (:code, :type, :value, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)');
+        }
+        $statement->execute(array(':code' => $normalized, ':type' => $type, ':value' => $value));
+    }
+}
+
+function load_commerce_config($db, $config)
+{
+    ensure_commerce_defaults($db, $config);
+    $statement = $db->prepare('SELECT price FROM product_settings WHERE sku = :sku LIMIT 1');
+    $statement->execute(array(':sku' => $config['product']['sku']));
+    $price = $statement->fetchColumn();
+    if ($price !== false) $config['product']['price'] = max(1, (int) $price);
+
+    $config['promo_codes'] = array();
+    $statement = $db->query('SELECT code, discount_type, discount_value FROM promo_codes WHERE active = 1 ORDER BY code');
+    while ($row = $statement->fetch(PDO::FETCH_ASSOC)) {
+        if ($row['discount_type'] === 'percent') {
+            $config['promo_codes'][$row['code']] = array('percent' => (float) $row['discount_value']);
+        } elseif ($row['discount_type'] === 'amount') {
+            $config['promo_codes'][$row['code']] = array('amount' => (int) round($row['discount_value']));
+        }
+    }
+    return $config;
 }
 
 function find_order($db, $key)
@@ -782,6 +877,7 @@ try {
         fail_response(400, 'Некорректный JSON.', array());
     }
     $db = open_database($config['database']);
+    $config = load_commerce_config($db, $config);
     $key = text_value($input, 'idempotency_key', 100);
     $order = preg_match('/^[A-Za-z0-9-]{20,100}$/', $key) ? find_order($db, $key) : null;
     if (!$order) {

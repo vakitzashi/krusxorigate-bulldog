@@ -83,8 +83,15 @@ const form = document.querySelector('#orderForm'); const toast = document.queryS
 const orderSubmitButton = form.querySelector('button[type="submit"]');
 const orderSubmitDefault = orderSubmitButton.innerHTML;
 const productStock = document.querySelector('#productStock');
+const productPrice = document.querySelector('#productPrice');
+const productPriceValue = document.querySelector('#productPriceValue');
 let stockState = 'unknown';
 const renderStock = result => {
+  if (Number.isFinite(Number(result?.price)) && Number(result.price) > 0) {
+    const currentPrice = Number(result.price);
+    productPriceValue.textContent = new Intl.NumberFormat('ru-RU').format(currentPrice);
+    productPrice.setAttribute('aria-label', 'Цена товара ' + currentPrice + ' рублей');
+  }
   productStock.classList.remove('is-available', 'is-out');
   if (!result?.synced) {
     stockState = 'unknown';

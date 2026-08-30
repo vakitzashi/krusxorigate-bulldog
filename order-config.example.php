@@ -46,5 +46,10 @@ return array(
     'promo_codes' => array(
         // 'BULLDOG10' => array('percent' => 10),
         // 'SALE5000' => array('amount' => 5000)
+    ),
+    'admin' => array(
+        'username' => 'Admin',
+        'password_hash' => 'BCRYPT_HASH',
+        'session_ttl' => 28800
     )
 );

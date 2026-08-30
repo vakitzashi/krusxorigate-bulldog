@@ -3,6 +3,7 @@
 define('ORDER_API_LIBRARY_ONLY', true);
 require __DIR__ . '/public_html/order.php';
 require __DIR__ . '/public_html/onec-lib.php';
+require __DIR__ . '/public_html/admin-lib.php';
 
 function expect_true($condition, $message)
 {
@@ -68,6 +69,17 @@ expect_true(!$shipment['created'] && $shipment['reason'] === 'feature_flag_disab
 
 $databasePath = tempnam(sys_get_temp_dir(), 'bulldog-order-test-');
 $db = open_database($databasePath);
+$commerceConfig = load_commerce_config($db, $config);
+expect_true((int) $commerceConfig['product']['price'] === 55000, 'Database-backed product price must be seeded from config.');
+expect_true(isset($commerceConfig['promo_codes']['TEST10']), 'Legacy promo config must be migrated into the database.');
+$db->prepare('UPDATE product_settings SET price = 57000 WHERE sku = :sku')->execute(array(':sku' => $config['product']['sku']));
+$commerceConfig = load_commerce_config($db, $config);
+expect_true((int) $commerceConfig['product']['price'] === 57000, 'Admin price changes must override the static config.');
+$adminConfig = $config;
+$adminConfig['admin'] = array('username' => 'Admin', 'password_hash' => password_hash('test-password', PASSWORD_BCRYPT), 'session_ttl' => 3600);
+list($adminLoggedIn, $adminError) = admin_login($db, $adminConfig, 'Admin', 'test-password');
+expect_true($adminLoggedIn && $adminError === '', 'Admin login must accept a valid bcrypt-protected credential.');
+expect_true((int) $db->query('SELECT COUNT(*) FROM admin_sessions')->fetchColumn() === 1, 'Admin login must create a server-side session.');
 $first = insert_order($db, $validated);
 expect_true($first['order_number'] === '000001', 'First internal order number must be 000001.');
 expect_true(find_order($db, $validated['idempotency_key'])['id'] === $first['id'], 'Idempotency lookup must return the existing order.');
