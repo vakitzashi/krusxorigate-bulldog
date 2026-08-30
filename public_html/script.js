@@ -27,6 +27,13 @@ function animateCounters(root) {
 }
 
 const header = document.querySelector('#header'); const progress = document.querySelector('.scroll-progress span');
+const lockHorizontalViewport = () => {
+  document.documentElement.style.setProperty('overflow-x', 'hidden', 'important');
+  document.body.style.setProperty('overflow-x', 'hidden', 'important');
+  if (window.scrollX !== 0) window.scrollTo(0, window.scrollY);
+};
+lockHorizontalViewport();
+window.addEventListener('resize', lockHorizontalViewport, { passive: true });
 window.addEventListener('scroll', () => {
   header.classList.toggle('is-scrolled', scrollY > 30);
   const max = document.documentElement.scrollHeight - innerHeight;

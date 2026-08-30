@@ -1,6 +1,7 @@
 :root{--bg:#090909;--panel:#111210;--panel-2:#181916;--text:#f4f1e9;--muted:#999991;--line:rgba(255,255,255,.13);--orange:#ff6400;--orange-2:#ff8a00;--font:'Manrope',Arial,sans-serif;--display:'Oswald','Arial Narrow',sans-serif}
 *{scrollbar-width:thin;scrollbar-color:#fd7f02 #0d0d0c}
 *::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar:horizontal{display:none!important;height:0!important}
 *::-webkit-scrollbar-track{background:#0d0d0c;border-left:1px solid #24241f}
 *::-webkit-scrollbar-thumb{min-height:42px;background:#fd7f02;border:2px solid #0d0d0c;border-radius:0}
 *::-webkit-scrollbar-thumb:hover{background:#ff9a32}
@@ -773,8 +774,8 @@
 .order-form .checkbox span{min-width:0}
 
 /* Prevent the fixed quick actions and edge-to-edge mobile sections from creating a root horizontal scrollbar. */
-html{max-width:100%;overflow-x:hidden}
-body{width:100%;max-width:100%;overflow-x:clip}
+html{max-width:100%;overflow-x:hidden!important;overscroll-behavior-x:none}
+body{width:100%;max-width:100%;overflow-x:hidden!important;overscroll-behavior-x:none}
 .gallery{overflow:hidden}
 
 @media(max-width:680px){
