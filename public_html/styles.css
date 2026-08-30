@@ -362,7 +362,8 @@
   .quick-cylinder__drum,.quick-cylinder__actions a{transition-duration:.01ms!important}
 }
 
-.gallery{overflow:auto;scrollbar-gutter:stable}
+.gallery{overflow:hidden;scrollbar-gutter:auto;scrollbar-width:none}
+.gallery::-webkit-scrollbar{display:none;width:0;height:0}
 
 /* Product price directly below the order form. */
 .order__purchase{min-width:0}
@@ -774,7 +775,7 @@
 /* Prevent the fixed quick actions and edge-to-edge mobile sections from creating a root horizontal scrollbar. */
 html{max-width:100%;overflow-x:hidden}
 body{width:100%;max-width:100%;overflow-x:clip}
-.gallery{overflow-x:hidden}
+.gallery{overflow:hidden}
 
 @media(max-width:680px){
   .order-form label:not(.checkbox){font-size:11px}
