@@ -2,6 +2,7 @@
 
 ini_set('display_errors', '0');
 date_default_timezone_set('Europe/Moscow');
+require_once __DIR__ . '/cdek-lib.php';
 
 function json_response($status, $payload)
 {
@@ -68,6 +69,11 @@ function require_config($configPath)
         array('database', 'name'),
         array('database', 'user'),
         array('database', 'password'),
+        array('cdek', 'api_base'),
+        array('cdek', 'client_id'),
+        array('cdek', 'client_secret'),
+        array('cdek', 'origin'),
+        array('cdek', 'package'),
         array('google', 'webhook_url'),
         array('google', 'webhook_secret'),
         array('telegram', 'bot_token'),
@@ -79,6 +85,17 @@ function require_config($configPath)
         }
     }
     return $config;
+}
+
+function mysql_ensure_column($db, $table, $column, $definition)
+{
+    $statement = $db->prepare(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND COLUMN_NAME = :column'
+    );
+    $statement->execute(array(':table' => $table, ':column' => $column));
+    if ((int) $statement->fetchColumn() === 0) {
+        $db->exec('ALTER TABLE `' . $table . '` ADD COLUMN `' . $column . '` ' . $definition);
+    }
 }
 
 function open_database($target)
@@ -114,6 +131,17 @@ function open_database($target)
                 discount_amount INT UNSIGNED NOT NULL,
                 total INT UNSIGNED NOT NULL,
                 promo_code VARCHAR(64) NOT NULL,
+                delivery_amount INT UNSIGNED NOT NULL DEFAULT 0,
+                delivery_quote_token VARCHAR(64) NOT NULL DEFAULT \'\',
+                delivery_period_min INT UNSIGNED NOT NULL DEFAULT 0,
+                delivery_period_max INT UNSIGNED NOT NULL DEFAULT 0,
+                pvz_code VARCHAR(64) NOT NULL DEFAULT \'\',
+                pvz_address VARCHAR(500) NOT NULL DEFAULT \'\',
+                cdek_city_code INT UNSIGNED NOT NULL DEFAULT 0,
+                cdek_tariff_code INT UNSIGNED NOT NULL DEFAULT 0,
+                cdek_tariff_name VARCHAR(190) NOT NULL DEFAULT \'\',
+                cdek_uuid VARCHAR(64) NOT NULL DEFAULT \'\',
+                cdek_status VARCHAR(20) NOT NULL DEFAULT \'disabled\',
                 cdek_track VARCHAR(128) NOT NULL,
                 sheet_status VARCHAR(20) NOT NULL,
                 telegram_status VARCHAR(20) NOT NULL,
@@ -126,6 +154,52 @@ function open_database($target)
                 KEY idx_orders_created_at (created_at),
                 KEY idx_orders_status (status),
                 KEY idx_orders_phone (phone)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+        $columns = array(
+            'delivery_amount' => 'INT UNSIGNED NOT NULL DEFAULT 0 AFTER `promo_code`',
+            'delivery_quote_token' => 'VARCHAR(64) NOT NULL DEFAULT \'\' AFTER `delivery_amount`',
+            'delivery_period_min' => 'INT UNSIGNED NOT NULL DEFAULT 0 AFTER `delivery_quote_token`',
+            'delivery_period_max' => 'INT UNSIGNED NOT NULL DEFAULT 0 AFTER `delivery_period_min`',
+            'pvz_code' => 'VARCHAR(64) NOT NULL DEFAULT \'\' AFTER `delivery_period_max`',
+            'pvz_address' => 'VARCHAR(500) NOT NULL DEFAULT \'\' AFTER `pvz_code`',
+            'cdek_city_code' => 'INT UNSIGNED NOT NULL DEFAULT 0 AFTER `pvz_address`',
+            'cdek_tariff_code' => 'INT UNSIGNED NOT NULL DEFAULT 0 AFTER `cdek_city_code`',
+            'cdek_tariff_name' => 'VARCHAR(190) NOT NULL DEFAULT \'\' AFTER `cdek_tariff_code`',
+            'cdek_uuid' => 'VARCHAR(64) NOT NULL DEFAULT \'\' AFTER `cdek_tariff_name`',
+            'cdek_status' => 'VARCHAR(20) NOT NULL DEFAULT \'disabled\' AFTER `cdek_uuid`'
+        );
+        foreach ($columns as $column => $definition) {
+            mysql_ensure_column($db, 'orders', $column, $definition);
+        }
+        $db->exec(
+            'CREATE TABLE IF NOT EXISTS delivery_quotes (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                quote_token VARCHAR(64) NOT NULL,
+                client_hash CHAR(64) NOT NULL,
+                city VARCHAR(190) NOT NULL,
+                address VARCHAR(500) NOT NULL,
+                delivery_type VARCHAR(32) NOT NULL,
+                city_code INT UNSIGNED NOT NULL,
+                latitude DECIMAL(10,7) NOT NULL,
+                longitude DECIMAL(10,7) NOT NULL,
+                location_precision VARCHAR(20) NOT NULL,
+                pvz_code VARCHAR(64) NOT NULL,
+                pvz_address VARCHAR(500) NOT NULL,
+                pvz_distance_m INT UNSIGNED NOT NULL,
+                tariff_code INT UNSIGNED NOT NULL,
+                tariff_name VARCHAR(190) NOT NULL,
+                delivery_amount INT UNSIGNED NOT NULL,
+                period_min INT UNSIGNED NOT NULL,
+                period_max INT UNSIGNED NOT NULL,
+                raw_response_json JSON NOT NULL,
+                expires_at DATETIME NOT NULL,
+                used_order_id BIGINT UNSIGNED NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_delivery_quotes_token (quote_token),
+                KEY idx_delivery_quotes_lookup (client_hash, city, delivery_type, created_at),
+                KEY idx_delivery_quotes_expires (expires_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
         return $db;
@@ -158,6 +232,17 @@ function open_database($target)
             discount_amount INTEGER NOT NULL,
             total INTEGER NOT NULL,
             promo_code TEXT NOT NULL,
+            delivery_amount INTEGER NOT NULL,
+            delivery_quote_token TEXT NOT NULL,
+            delivery_period_min INTEGER NOT NULL,
+            delivery_period_max INTEGER NOT NULL,
+            pvz_code TEXT NOT NULL,
+            pvz_address TEXT NOT NULL,
+            cdek_city_code INTEGER NOT NULL,
+            cdek_tariff_code INTEGER NOT NULL,
+            cdek_tariff_name TEXT NOT NULL,
+            cdek_uuid TEXT NOT NULL,
+            cdek_status TEXT NOT NULL,
             cdek_track TEXT NOT NULL,
             sheet_status TEXT NOT NULL,
             telegram_status TEXT NOT NULL,
@@ -179,6 +264,25 @@ function find_order($db, $key)
     return $row ? $row : null;
 }
 
+function find_delivery_quote($db, $token)
+{
+    if ($token === '') return null;
+    $statement = $db->prepare(
+        'SELECT * FROM delivery_quotes WHERE quote_token = :token AND expires_at > CURRENT_TIMESTAMP LIMIT 1'
+    );
+    $statement->execute(array(':token' => $token));
+    $row = $statement->fetch(PDO::FETCH_ASSOC);
+    return $row ? $row : null;
+}
+
+function mark_delivery_quote_used($db, $token, $orderId)
+{
+    $statement = $db->prepare(
+        'UPDATE delivery_quotes SET used_order_id = :order_id WHERE quote_token = :token AND (used_order_id IS NULL OR used_order_id = :order_id)'
+    );
+    $statement->execute(array(':order_id' => $orderId, ':token' => $token));
+}
+
 function insert_order($db, $order)
 {
     $db->beginTransaction();
@@ -188,12 +292,16 @@ function insert_order($db, $order)
                 order_number, idempotency_key, created_at, created_msk, status,
                 customer_name, phone, email, city, address, delivery_type, comment,
                 product_name, sku, quantity, subtotal, discount_percent, discount_amount,
-                total, promo_code, cdek_track, sheet_status, telegram_status, last_error, payload_json
+                total, promo_code, delivery_amount, delivery_quote_token, delivery_period_min, delivery_period_max,
+                pvz_code, pvz_address, cdek_city_code, cdek_tariff_code, cdek_tariff_name,
+                cdek_uuid, cdek_status, cdek_track, sheet_status, telegram_status, last_error, payload_json
             ) VALUES (
                 NULL, :idempotency_key, :created_at, :created_msk, :status,
                 :customer_name, :phone, :email, :city, :address, :delivery_type, :comment,
                 :product_name, :sku, :quantity, :subtotal, :discount_percent, :discount_amount,
-                :total, :promo_code, :cdek_track, :sheet_status, :telegram_status, :last_error, :payload_json
+                :total, :promo_code, :delivery_amount, :delivery_quote_token, :delivery_period_min, :delivery_period_max,
+                :pvz_code, :pvz_address, :cdek_city_code, :cdek_tariff_code, :cdek_tariff_name,
+                :cdek_uuid, :cdek_status, :cdek_track, :sheet_status, :telegram_status, :last_error, :payload_json
             )'
         );
         $params = array();
@@ -229,6 +337,16 @@ function update_delivery_state($db, $id, $column, $state, $error)
         $statement = $db->prepare('UPDATE orders SET ' . $column . ' = :state, last_error = :error WHERE id = :id');
         $statement->execute(array(':state' => $state, ':error' => $error, ':id' => $id));
     }
+}
+
+function update_cdek_state($db, $id, $status, $uuid, $track, $error)
+{
+    $statement = $db->prepare(
+        'UPDATE orders SET cdek_status = :status, cdek_uuid = :uuid, cdek_track = :track, last_error = :error WHERE id = :id'
+    );
+    $statement->execute(array(
+        ':status' => $status, ':uuid' => $uuid, ':track' => $track, ':error' => $error, ':id' => $id
+    ));
 }
 
 function http_request($method, $url, $headers, $body)
@@ -280,9 +398,12 @@ function sheet_row($order)
     $discount = $order['discount_amount'] > 0
         ? rtrim(rtrim(number_format((float) $order['discount_percent'], 2, '.', ''), '0'), '.') . '% / ' . money_text($order['discount_amount'])
         : '0% / 0 ₽';
+    $destination = $order['delivery_type'] === 'ПВЗ' && $order['pvz_address'] !== ''
+        ? $order['pvz_address'] . ' (код ' . $order['pvz_code'] . ')'
+        : $order['address'];
     return array(
         $order['created_msk'], $order['order_number'], $order['status'], $order['customer_name'],
-        $order['phone'], $order['email'], $order['city'], $order['address'], $order['delivery_type'],
+        $order['phone'], $order['email'], $order['city'], $destination, $order['delivery_type'],
         $comment, $order['product_name'] . ' | SKU: ' . $order['sku'], money_text($order['total']),
         $promo, $track, $discount
     );
@@ -323,7 +444,11 @@ function telegram_message($order)
         ? rtrim(rtrim(number_format((float) $order['discount_percent'], 2, '.', ''), '0'), '.') . '% / ' . money_text($order['discount_amount'])
         : '—';
     $delivery = $order['delivery_type'] === 'Курьер' ? 'Курьер СДЭК' : 'До ПВЗ СДЭК';
-    $product = $order['product_name'] . ' (SKU: ' . $order['sku'] . ') ×1 — ' . money_text($order['total']);
+    $destination = $order['delivery_type'] === 'ПВЗ' && $order['pvz_address'] !== ''
+        ? $order['pvz_address'] . ' (код ' . $order['pvz_code'] . ')'
+        : $order['address'];
+    $productTotal = max(0, (int) $order['subtotal'] - (int) $order['discount_amount']);
+    $product = $order['product_name'] . ' (SKU: ' . $order['sku'] . ') ×1 — ' . money_text($productTotal);
     return "<b>Оформлен новый заказ!</b>\n\n"
         . "⌚ <b>Дата и время:</b> " . html_value($order['created_msk']) . "\n"
         . "#️⃣ <b>Номер заказа:</b> " . html_value($order['order_number']) . "\n"
@@ -332,8 +457,9 @@ function telegram_message($order)
         . "📞 <b>Телефон:</b> " . html_value($order['phone']) . "\n"
         . "✉️ <b>Email:</b> " . html_value($order['email']) . "\n"
         . "🏢 <b>Город:</b> " . html_value($order['city']) . "\n\n"
-        . "📍 <b>Адрес/ПВЗ:</b> " . html_value($order['address']) . "\n"
+        . "📍 <b>Адрес/ПВЗ:</b> " . html_value($destination) . "\n"
         . "🚚 <b>Доставка:</b> " . html_value($delivery) . "\n"
+        . "💳 <b>Стоимость доставки:</b> " . html_value(money_text($order['delivery_amount'])) . "\n"
         . "💬 <b>Комментарий:</b> " . html_value($comment) . "\n\n"
         . "📦 <b>Товары:</b>\n\n" . html_value($product) . "\n\n"
         . "🧾 <b>Сумма:</b> " . html_value(money_text($order['total'])) . "\n"
@@ -354,7 +480,7 @@ function send_to_telegram($order, $config)
     http_request('POST', $url, array('Content-Type: application/x-www-form-urlencoded'), $body);
 }
 
-function validate_order_input($input, $config)
+function validate_order_input($input, $config, $quote)
 {
     $errors = array();
     $name = text_value($input, 'name', 120);
@@ -368,6 +494,7 @@ function validate_order_input($input, $config)
     $key = text_value($input, 'idempotency_key', 100);
     $consent = text_value($input, 'consent', 5);
     $honeypot = text_value($input, 'website', 250);
+    $quoteToken = text_value($input, 'delivery_quote', 64);
 
     if ($honeypot !== '') {
         fail_response(200, 'Заявка принята.', array());
@@ -382,6 +509,13 @@ function validate_order_input($input, $config)
     if (!in_array($delivery, array('Курьер', 'ПВЗ'), true)) $errors['delivery'] = 'Выберите способ доставки.';
     if ($consent !== '1') $errors['consent'] = 'Необходимо подтвердить возраст и согласие.';
     if (!preg_match('/^[A-Za-z0-9-]{20,100}$/', $key)) $errors['idempotency_key'] = 'Обновите страницу и повторите отправку.';
+    if (!is_array($quote) || $quoteToken === '' || !hash_equals((string) $quote['quote_token'], $quoteToken)) {
+        $errors['delivery_quote'] = 'Рассчитайте доставку заново.';
+    } elseif (trim($quote['city']) !== $city || trim($quote['address']) !== $address || $quote['delivery_type'] !== $delivery) {
+        $errors['delivery_quote'] = 'Адрес изменился. Рассчитайте доставку заново.';
+    } elseif (!empty($quote['used_order_id'])) {
+        $errors['delivery_quote'] = 'Расчёт доставки уже использован. Выполните новый расчёт.';
+    }
 
     $price = (int) $config['product']['price'];
     $discountPercent = 0.0;
@@ -407,6 +541,7 @@ function validate_order_input($input, $config)
         fail_response(422, 'Проверьте заполнение формы.', $errors);
     }
 
+    $deliveryAmount = (int) $quote['delivery_amount'];
     $now = new DateTimeImmutable('now', new DateTimeZone('Europe/Moscow'));
     return array(
         'order_number' => null,
@@ -427,8 +562,19 @@ function validate_order_input($input, $config)
         'subtotal' => $price,
         'discount_percent' => $discountPercent,
         'discount_amount' => $discountAmount,
-        'total' => max(0, $price - $discountAmount),
+        'total' => max(0, $price - $discountAmount) + $deliveryAmount,
         'promo_code' => $promoCode,
+        'delivery_amount' => $deliveryAmount,
+        'delivery_quote_token' => $quoteToken,
+        'delivery_period_min' => (int) $quote['period_min'],
+        'delivery_period_max' => (int) $quote['period_max'],
+        'pvz_code' => $quote['pvz_code'],
+        'pvz_address' => $quote['pvz_address'],
+        'cdek_city_code' => (int) $quote['city_code'],
+        'cdek_tariff_code' => (int) $quote['tariff_code'],
+        'cdek_tariff_name' => $quote['tariff_name'],
+        'cdek_uuid' => '',
+        'cdek_status' => empty($config['cdek']['create_shipments']) ? 'disabled' : 'pending',
         'cdek_track' => '',
         'sheet_status' => 'pending',
         'telegram_status' => 'pending',
@@ -474,14 +620,33 @@ try {
     if (!is_array($input)) {
         fail_response(400, 'Некорректный JSON.', array());
     }
-    $validated = validate_order_input($input, $config);
     $db = open_database($config['database']);
-    $order = find_order($db, $validated['idempotency_key']);
+    $key = text_value($input, 'idempotency_key', 100);
+    $order = preg_match('/^[A-Za-z0-9-]{20,100}$/', $key) ? find_order($db, $key) : null;
     if (!$order) {
+        $quoteToken = text_value($input, 'delivery_quote', 64);
+        $quote = find_delivery_quote($db, $quoteToken);
+        $validated = validate_order_input($input, $config, $quote);
         $order = insert_order($db, $validated);
+        mark_delivery_quote_used($db, $quoteToken, $order['id']);
     }
 
     $failures = array();
+    if (!empty($config['cdek']['create_shipments']) && $order['cdek_status'] !== 'created') {
+        try {
+            $shipment = cdek_create_shipment($config, $secretRoot, $order);
+            if (!empty($shipment['created'])) {
+                update_cdek_state($db, $order['id'], 'created', $shipment['uuid'], $shipment['cdek_number'], '');
+                $order['cdek_status'] = 'created';
+                $order['cdek_uuid'] = $shipment['uuid'];
+                $order['cdek_track'] = $shipment['cdek_number'];
+            }
+        } catch (Exception $exception) {
+            $message = 'CDEK: ' . $exception->getMessage();
+            update_cdek_state($db, $order['id'], 'failed', $order['cdek_uuid'], $order['cdek_track'], $message);
+            $failures[] = $message;
+        }
+    }
     if ($order['sheet_status'] !== 'sent') {
         try {
             send_to_google_sheet($order, $config);
@@ -511,7 +676,13 @@ try {
     }
     $clearError = $db->prepare('UPDATE orders SET last_error = :error WHERE id = :id');
     $clearError->execute(array(':error' => '', ':id' => $order['id']));
-    json_response(201, array('ok' => true, 'order_number' => $order['order_number'], 'status' => 'Новый'));
+    json_response(201, array(
+        'ok' => true,
+        'order_number' => $order['order_number'],
+        'status' => 'Новый',
+        'delivery_amount' => (int) $order['delivery_amount'],
+        'total' => (int) $order['total']
+    ));
 } catch (Exception $exception) {
     error_log('Order API error: ' . $exception->getMessage());
     fail_response(503, 'Сервис оформления временно недоступен. Попробуйте позже.', array());

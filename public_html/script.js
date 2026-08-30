@@ -87,9 +87,109 @@ const createOrderKey = () => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
 };
 let orderKey = createOrderKey();
+const deliveryQuote = document.querySelector('#deliveryQuote');
+const deliveryQuoteAmount = document.querySelector('#deliveryQuoteAmount');
+const deliveryQuoteStatus = document.querySelector('#deliveryQuoteStatus');
+const deliveryQuotePvz = document.querySelector('#deliveryQuotePvz');
+const deliveryQuoteToken = document.querySelector('#deliveryQuoteToken');
+const calculateDeliveryButton = document.querySelector('#calculateDelivery');
+const deliveryFields = ['city', 'address', 'delivery'].map(name => form.elements[name]);
+const rubles = amount => new Intl.NumberFormat('ru-RU').format(amount) + ' ₽';
+const deliverySignature = () => deliveryFields.map(field => field.value.trim()).join('|');
+let quotedSignature = '';
+let deliveryTimer = 0;
+let deliveryRequest = null;
+
+const invalidateDeliveryQuote = () => {
+  deliveryQuoteToken.value = '';
+  quotedSignature = '';
+  deliveryQuote.classList.remove('is-ready', 'is-error');
+  deliveryQuoteAmount.textContent = '—';
+  deliveryQuoteStatus.textContent = 'Данные изменились — рассчитайте доставку.';
+  deliveryQuotePvz.hidden = true;
+};
+
+const deliveryPeriodText = result => {
+  if (!result.period_min && !result.period_max) return 'Срок уточнит СДЭК';
+  if (result.period_min === result.period_max) return result.period_min + ' дн.';
+  return result.period_min + '–' + result.period_max + ' дн.';
+};
+
+const calculateDelivery = async (silent = false) => {
+  const city = form.elements.city.value.trim();
+  const address = form.elements.address.value.trim();
+  const delivery = form.elements.delivery.value;
+  if (city.length < 2 || address.length < 5) {
+    if (!silent) showToast('Нужен адрес', 'Укажите город и полный адрес для расчёта СДЭК.', 'error');
+    return false;
+  }
+  deliveryRequest?.abort();
+  deliveryRequest = new AbortController();
+  deliveryQuote.classList.remove('is-ready', 'is-error');
+  deliveryQuote.classList.add('is-loading');
+  deliveryQuoteAmount.textContent = '…';
+  deliveryQuoteStatus.textContent = 'Ищем тариф и ближайший пункт СДЭК…';
+  calculateDeliveryButton.disabled = true;
+  try {
+    const response = await fetch('delivery.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ city, address, delivery }),
+      credentials: 'same-origin',
+      signal: deliveryRequest.signal
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.message || 'Не удалось рассчитать доставку.');
+    deliveryQuoteToken.value = result.quote_token;
+    quotedSignature = deliverySignature();
+    deliveryQuoteAmount.textContent = rubles(result.delivery_amount);
+    deliveryQuoteStatus.textContent = 'Единая стоимость доставки · ' + deliveryPeriodText(result);
+    deliveryQuotePvz.replaceChildren();
+    const destinationTitle = document.createElement('b');
+    if (result.pvz) {
+      destinationTitle.textContent = 'Ближайший ПВЗ · код ' + result.pvz.code;
+      deliveryQuotePvz.append(destinationTitle, document.createTextNode(result.pvz.address));
+    } else {
+      destinationTitle.textContent = 'Курьерская доставка';
+      deliveryQuotePvz.append(destinationTitle, document.createTextNode('До указанного адреса'));
+    }
+    deliveryQuotePvz.hidden = false;
+    deliveryQuote.classList.add('is-ready');
+    return true;
+  } catch (error) {
+    if (error.name === 'AbortError') return false;
+    invalidateDeliveryQuote();
+    deliveryQuote.classList.add('is-error');
+    deliveryQuoteStatus.textContent = error.message || 'Не удалось рассчитать доставку.';
+    if (!silent) showToast('Расчёт СДЭК не выполнен', deliveryQuoteStatus.textContent, 'error');
+    return false;
+  } finally {
+    deliveryQuote.classList.remove('is-loading');
+    calculateDeliveryButton.disabled = false;
+  }
+};
+
+deliveryFields.forEach(field => {
+  field.addEventListener(field.tagName === 'SELECT' ? 'change' : 'input', () => {
+    clearTimeout(deliveryTimer);
+    invalidateDeliveryQuote();
+    deliveryTimer = setTimeout(() => calculateDelivery(true), 1200);
+  });
+  if (field.tagName !== 'SELECT') field.addEventListener('blur', () => {
+    clearTimeout(deliveryTimer);
+    calculateDelivery(true);
+  });
+});
+calculateDeliveryButton.addEventListener('click', () => calculateDelivery(false));
+
 form.addEventListener('submit', async event => {
   event.preventDefault();
   if (!form.reportValidity()) return;
+
+  if (!deliveryQuoteToken.value || quotedSignature !== deliverySignature()) {
+    const calculated = await calculateDelivery(false);
+    if (!calculated) return;
+  }
 
   const button = form.querySelector('button[type="submit"]');
   const originalButton = button.innerHTML;
@@ -111,6 +211,8 @@ form.addEventListener('submit', async event => {
 
     showToast('Заказ № ' + result.order_number + ' оформлен', 'Заявка принята. Мы свяжемся с вами для подтверждения.');
     form.reset();
+    invalidateDeliveryQuote();
+    deliveryQuoteStatus.textContent = 'Укажите город, адрес и способ получения в форме.';
     orderKey = createOrderKey();
   } catch (error) {
     showToast('Заявка не отправлена', error.message || 'Проверьте соединение и повторите попытку.', 'error');

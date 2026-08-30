@@ -21,7 +21,8 @@ expect_true(!in_array('#️⃣ ТОВАРА', sheet_headers(), true), 'The forbi
 
 $config = array(
     'product' => array('name' => 'Револьвер Бульдог KURS кал.5.6/16 КСОИ', 'sku' => '00-00002209', 'price' => 55000),
-    'promo_codes' => array('TEST10' => array('percent' => 10))
+    'promo_codes' => array('TEST10' => array('percent' => 10)),
+    'cdek' => array('create_shipments' => false)
 );
 $input = array(
     'name' => 'Иван Григорян Олегович',
@@ -34,13 +35,33 @@ $input = array(
     'promo_code' => 'test10',
     'consent' => '1',
     'website' => '',
+    'delivery_quote' => '1234567890abcdef1234567890abcdef1234567890abcdef',
     'idempotency_key' => '12345678-1234-1234-1234-123456789012'
 );
-$validated = validate_order_input($input, $config);
+$quote = array(
+    'quote_token' => $input['delivery_quote'],
+    'city' => $input['city'],
+    'address' => $input['address'],
+    'delivery_type' => 'ПВЗ',
+    'used_order_id' => null,
+    'delivery_amount' => 600,
+    'period_min' => 3,
+    'period_max' => 5,
+    'pvz_code' => 'ABN1',
+    'pvz_address' => 'г. Абинск, ул. Серова, д. 16',
+    'city_code' => 123,
+    'tariff_code' => 136,
+    'tariff_name' => 'Посылка склад-склад'
+);
+$validated = validate_order_input($input, $config, $quote);
 expect_true($validated['status'] === 'Новый', 'New orders must have the New status.');
 expect_true($validated['phone'] === '+79897714923', 'Phone must be normalized.');
 expect_true($validated['email'] === 'test@example.com', 'Email must be normalized.');
-expect_true($validated['discount_amount'] === 5500 && $validated['total'] === 49500, 'Promo discount must be calculated server-side.');
+expect_true($validated['discount_amount'] === 5500 && $validated['total'] === 50100, 'Promo and delivery total must be calculated server-side.');
+expect_true($validated['delivery_amount'] === 600 && $validated['pvz_code'] === 'ABN1', 'The signed CDEK quote must populate the order.');
+expect_true($validated['cdek_status'] === 'disabled', 'Shipment creation must remain disabled by the feature flag.');
+$shipment = cdek_create_shipment($config, sys_get_temp_dir(), $validated);
+expect_true(!$shipment['created'] && $shipment['reason'] === 'feature_flag_disabled', 'The feature flag must block POST /orders.');
 
 $databasePath = tempnam(sys_get_temp_dir(), 'bulldog-order-test-');
 $db = open_database($databasePath);
@@ -53,6 +74,7 @@ expect_true(strpos($row[10], '00-00002209') !== false, 'Product field must inclu
 $message = telegram_message($first);
 expect_true(strpos($message, 'Оформлен новый заказ!') !== false, 'Telegram message title is missing.');
 expect_true(strpos($message, '000001') !== false, 'Telegram message order number is missing.');
+expect_true(strpos($message, '600 ₽') !== false, 'Telegram message must include the delivery amount.');
 
 $db = null;
 @unlink($databasePath);

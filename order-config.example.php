@@ -14,6 +14,20 @@ return array(
         'user' => 'ИМЯ_ПОЛЬЗОВАТЕЛЯ',
         'password' => 'ПАРОЛЬ_БАЗЫ'
     ),
+    'cdek' => array(
+        'api_base' => 'https://api.cdek.ru/v2',
+        'client_id' => 'ИДЕНТИФИКАТОР_API_СДЭК',
+        'client_secret' => 'ПАРОЛЬ_API_СДЭК',
+        'create_shipments' => false,
+        'origin' => array(
+            'city_code' => 44,
+            'city' => 'Москва',
+            'address' => 'ул. Бутлерова, 14к2'
+        ),
+        'package' => array('weight_g' => 1480, 'length_cm' => 35, 'width_cm' => 25, 'height_cm' => 10),
+        'insurance_value' => 55000,
+        'geocoder_user_agent' => 'ORIGATE-Tactic/1.0 (info@origate.com)'
+    ),
     'google' => array(
         'webhook_url' => 'https://script.google.com/macros/s/DEPLOYMENT_ID/exec',
         'webhook_secret' => 'ОТДЕЛЬНЫЙ_ДЛИННЫЙ_СЛУЧАЙНЫЙ_КЛЮЧ'

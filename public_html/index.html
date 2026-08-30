@@ -278,9 +278,16 @@
           <p>Оставьте контакты — мы уточним детали, подберём ближайший пункт СДЭК и пришлём ссылку на оплату.</p>
           <ol class="order-flow"><li><b>01</b><span>Заявка<small>Имя и телефон</small></span></li><li><b>02</b><span>СДЭК<small>Удобный пункт или курьер</small></span></li><li><b>03</b><span>Оплата<small>Защищённая ссылка</small></span></li></ol>
           <div class="delivery-line"><span>CDEK</span><p><b>Доставка по России</b><small>Стоимость и срок рассчитаем перед оплатой</small></p></div>
+          <div class="delivery-quote" id="deliveryQuote" aria-live="polite">
+            <div class="delivery-quote__head"><span>Расчёт СДЭК</span><b id="deliveryQuoteAmount">—</b></div>
+            <p id="deliveryQuoteStatus">Укажите город, адрес и способ получения в форме.</p>
+            <div class="delivery-quote__pvz" id="deliveryQuotePvz" hidden></div>
+            <button type="button" id="calculateDelivery">Рассчитать доставку <span>→</span></button>
+          </div>
         </div>
         <div class="order__purchase">
         <form class="order-form reveal" id="orderForm" novalidate>
+          <input name="delivery_quote" id="deliveryQuoteToken" type="hidden" value="">
           <div class="order-form__head"><span>Заявка на БУЛЬДОГ KURS</span><b>Шаг 1 из 1</b></div>
           <label>ФИО<input name="name" type="text" placeholder="Иванов Иван Иванович" autocomplete="name" minlength="5" maxlength="120" required></label>
           <div class="order-form__row">
