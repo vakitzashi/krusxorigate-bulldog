@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /admin.php
+Disallow: /order.php
+Disallow: /delivery.php
+Disallow: /stock.php
+Disallow: /1c_exchange.php
+
+Clean-param: utm_source&utm_medium&utm_campaign&utm_term&utm_content&yclid&gclid /
+
+Sitemap: https://origate-tactic.ru/sitemap.xml
