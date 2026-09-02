@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-  <link rel="stylesheet" href="styles.css?v=20260830-5">
+  <link rel="stylesheet" href="styles.css?v=20260902-1">
 </head>
 <body class="age-locked">
   <div class="noise" aria-hidden="true"></div>
@@ -196,7 +196,13 @@
             <li>БУЛЬДОГ KURS и сумка</li><li>Руководство-паспорт</li><li>Защитные очки и 3 мишени</li><li>100 резиновых шариков 10 мм</li><li>Масло и средство от нагара</li><li>Ёршик для чистки</li>
           </ul>
           <div class="kit__warning"><b>Важно:</b> монтажные патроны приобретаются отдельно.</div>
-          <a class="button button--primary" href="#order">Заказать комплект <span>→</span></a>
+          <div class="kit__purchase">
+            <div class="product-price" id="productPrice" aria-label="Цена товара 55 000 рублей">
+              <div><span>Цена БУЛЬДОГ KURS</span><small>Доставка рассчитывается отдельно</small></div>
+              <strong><span id="productPriceValue">55 000</span> <b>₽</b></strong>
+            </div>
+            <a class="button button--primary" href="#order">Заказать комплект <span>→</span></a>
+          </div>
         </div>
         <button class="kit__image reveal js-open-gallery" type="button" aria-label="Открыть фотографию комплектации">
           <img src="kit-new.webp" alt="Полная комплектация БУЛЬДОГ KURS" loading="lazy">
@@ -304,10 +310,6 @@
           <button class="button button--primary" type="submit">Отправить заявку <span>→</span></button>
           <small>Нажимая кнопку, вы отправляете заявку продавцу. Менеджер свяжется с вами для подтверждения.</small>
         </form>
-        <div class="product-price reveal" id="productPrice" aria-label="Цена товара 55 000 рублей">
-          <div><span>Цена БУЛЬДОГ KURS</span><small>Доставка рассчитывается отдельно</small><small class="product-stock" id="productStock" aria-live="polite">Остаток 1С: ожидает синхронизации</small></div>
-          <strong><span id="productPriceValue">55 000</span> <b>₽</b></strong>
-        </div>
         </div>
       </div>
     </section>
@@ -392,6 +394,6 @@
   </aside>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><b></b><span></span></div>
-  <script src="script.js?v=20260830-5"></script>
+  <script src="script.js?v=20260902-1"></script>
 </body>
 </html>

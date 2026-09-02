@@ -82,7 +82,6 @@ gallery.addEventListener('click', event => { if (event.target === gallery) galle
 const form = document.querySelector('#orderForm'); const toast = document.querySelector('#toast');
 const orderSubmitButton = form.querySelector('button[type="submit"]');
 const orderSubmitDefault = orderSubmitButton.innerHTML;
-const productStock = document.querySelector('#productStock');
 const productPrice = document.querySelector('#productPrice');
 const productPriceValue = document.querySelector('#productPriceValue');
 let stockState = 'unknown';
@@ -92,10 +91,8 @@ const renderStock = result => {
     productPriceValue.textContent = new Intl.NumberFormat('ru-RU').format(currentPrice);
     productPrice.setAttribute('aria-label', 'Цена товара ' + currentPrice + ' рублей');
   }
-  productStock.classList.remove('is-available', 'is-out');
   if (!result?.synced) {
     stockState = 'unknown';
-    productStock.textContent = 'Остаток 1С: ожидает синхронизации';
     if (!form.hasAttribute('aria-busy')) {
       orderSubmitButton.disabled = false;
       orderSubmitButton.innerHTML = orderSubmitDefault;
@@ -104,16 +101,12 @@ const renderStock = result => {
   }
   if (result.available > 0) {
     stockState = 'available';
-    productStock.classList.add('is-available');
-    productStock.textContent = 'В наличии: ' + result.available + ' шт.';
     if (!form.hasAttribute('aria-busy')) {
       orderSubmitButton.disabled = false;
       orderSubmitButton.innerHTML = orderSubmitDefault;
     }
   } else {
     stockState = 'out';
-    productStock.classList.add('is-out');
-    productStock.textContent = 'Нет в наличии';
     orderSubmitButton.disabled = true;
     orderSubmitButton.innerHTML = 'Нет в наличии';
   }
