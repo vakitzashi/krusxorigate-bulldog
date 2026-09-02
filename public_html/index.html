@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-  <link rel="stylesheet" href="styles.css?v=20260902-1">
+  <link rel="stylesheet" href="styles.css?v=20260902-2">
 </head>
 <body class="age-locked">
   <div class="noise" aria-hidden="true"></div>
@@ -197,11 +197,11 @@
           </ul>
           <div class="kit__warning"><b>Важно:</b> монтажные патроны приобретаются отдельно.</div>
           <div class="kit__purchase">
-            <div class="product-price" id="productPrice" aria-label="Цена товара 55 000 рублей">
-              <div><span>Цена БУЛЬДОГ KURS</span><small>Доставка рассчитывается отдельно</small></div>
-              <strong><span id="productPriceValue">55 000</span> <b>₽</b></strong>
-            </div>
             <a class="button button--primary" href="#order">Заказать комплект <span>→</span></a>
+            <div class="kit__price js-product-price" aria-label="Цена комплекта 55 000 рублей">
+              <span>Цена комплекта</span>
+              <strong><span class="js-product-price-value">55 000</span> ₽</strong>
+            </div>
           </div>
         </div>
         <button class="kit__image reveal js-open-gallery" type="button" aria-label="Открыть фотографию комплектации">
@@ -310,6 +310,10 @@
           <button class="button button--primary" type="submit">Отправить заявку <span>→</span></button>
           <small>Нажимая кнопку, вы отправляете заявку продавцу. Менеджер свяжется с вами для подтверждения.</small>
         </form>
+        <div class="product-price js-product-price reveal" aria-label="Цена товара 55 000 рублей">
+          <div><span>Цена БУЛЬДОГ KURS</span><small>Доставка рассчитывается отдельно</small></div>
+          <strong><span class="js-product-price-value">55 000</span> <b>₽</b></strong>
+        </div>
         </div>
       </div>
     </section>
@@ -394,6 +398,6 @@
   </aside>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><b></b><span></span></div>
-  <script src="script.js?v=20260902-1"></script>
+  <script src="script.js?v=20260902-2"></script>
 </body>
 </html>
