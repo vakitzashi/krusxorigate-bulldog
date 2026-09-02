@@ -370,9 +370,9 @@
 .order__purchase{min-width:0}
 .kit__purchase{display:flex;align-items:center;justify-content:space-between;gap:24px}
 .kit__purchase>.button{flex:0 0 auto;padding-inline:20px}
-.kit__price{display:flex;align-items:baseline;justify-content:flex-end;gap:9px;color:#fc8005;text-align:right;text-transform:uppercase;white-space:nowrap}
-.kit__price>span{font-size:9px;font-weight:900;letter-spacing:.13em}
-.kit__price strong{font:700 25px/1 var(--display);letter-spacing:-.02em}
+.kit__price{display:flex;align-items:baseline;justify-content:flex-end;gap:12px;color:#fc8005;text-align:right;text-transform:uppercase;white-space:nowrap;-webkit-text-stroke:.45px #181715;paint-order:stroke fill}
+.kit__price>span{font-size:18px;font-weight:900;letter-spacing:.13em}
+.kit__price strong{font:700 50px/1 var(--display);letter-spacing:-.02em}
 .product-price{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 30px;background:#fd7f02;color:#181715;border:1px solid #181715;box-shadow:0 22px 48px rgba(0,0,0,.13)}
 .order__purchase>.product-price{border-top:0}
 .product-price div{display:flex;flex-direction:column;gap:7px}
