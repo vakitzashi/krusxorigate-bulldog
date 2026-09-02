@@ -22,7 +22,7 @@ expect_true(sheet_headers() === $expectedHeaders, 'Google Sheets headers must ma
 expect_true(!in_array('#️⃣ ТОВАРА', sheet_headers(), true), 'The forbidden product-number column must not exist.');
 
 $config = array(
-    'product' => array('name' => 'Револьвер Бульдог KURS кал.5.6/16 КСОИ', 'sku' => '00-00002209', 'price' => 55000),
+    'product' => array('name' => 'Револьвер Бульдог KURS кал.5.6/16 КСОИ', 'sku' => '00000050201', 'price' => 55000),
     'promo_codes' => array('TEST10' => array('percent' => 10)),
     'cdek' => array('create_shipments' => false),
     'one_c' => array('export_orders' => false)
@@ -92,7 +92,7 @@ $db->prepare("UPDATE orders SET onec_status = 'sent', onec_export_batch = 'test-
 $enabledConfig = $config;
 $enabledConfig['one_c']['export_orders'] = true;
 $orderXml = onec_orders_xml($db, $enabledConfig, array('current_batch' => 'test-batch', 'session_hash' => str_repeat('1', 64)));
-expect_true(strpos($orderXml, '<Артикул>00-00002209</Артикул>') !== false, 'CommerceML order must contain the exact SKU.');
+expect_true(strpos($orderXml, '<Артикул>00000050201</Артикул>') !== false, 'CommerceML order must contain the exact SKU.');
 expect_true(strpos($orderXml, '<Наименование>Резервировать товар</Наименование>') !== false, 'CommerceML order must request reservation.');
 expect_true(strpos($orderXml, '<Ид>ORDER_DELIVERY</Ид>') !== false, 'CommerceML order must contain delivery as a service.');
 $db->prepare("UPDATE orders SET onec_status = 'disabled', onec_export_batch = '' WHERE id = :id")
@@ -100,7 +100,7 @@ $db->prepare("UPDATE orders SET onec_status = 'disabled', onec_export_batch = ''
 $commerceMlPath = tempnam(sys_get_temp_dir(), 'bulldog-1c-test-');
 $commerceMl = '<?xml version="1.0" encoding="UTF-8"?>'
     . '<КоммерческаяИнформация ВерсияСхемы="2.10">'
-    . '<Каталог><Товары><Товар><Ид>onec-product-guid</Ид><Артикул>00-00002209</Артикул></Товар></Товары></Каталог>'
+    . '<Каталог><Товары><Товар><Ид>onec-product-guid</Ид><Артикул>00000050201</Артикул></Товар></Товары></Каталог>'
     . '<ПакетПредложений><Предложения><Предложение><Ид>onec-product-guid</Ид><Количество>3</Количество></Предложение></Предложения></ПакетПредложений>'
     . '</КоммерческаяИнформация>';
 file_put_contents($commerceMlPath, $commerceMl);
@@ -122,7 +122,7 @@ try {
 expect_true($outOfStockBlocked, 'A synced zero available balance must block the next order atomically.');
 $row = sheet_row($first);
 expect_true(count($row) === 15, 'Google Sheets row must contain exactly 15 fields.');
-expect_true(strpos($row[10], '00-00002209') !== false, 'Product field must include SKU.');
+expect_true(strpos($row[10], '00000050201') !== false, 'Product field must include SKU.');
 $message = telegram_message($first);
 expect_true(strpos($message, 'Оформлен новый заказ!') !== false, 'Telegram message title is missing.');
 expect_true(strpos($message, '000001') !== false, 'Telegram message order number is missing.');

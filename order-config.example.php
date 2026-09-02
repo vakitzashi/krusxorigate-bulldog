@@ -4,7 +4,7 @@ return array(
     'allowed_hosts' => array('origate-tactic.ru', 'www.origate-tactic.ru'),
     'product' => array(
         'name' => 'Револьвер Бульдог KURS кал.5.6/16 КСОИ',
-        'sku' => '00-00002209',
+        'sku' => '00000050201',
         'price' => 55000
     ),
     'database' => array(
