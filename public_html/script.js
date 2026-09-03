@@ -1,3 +1,21 @@
+const METRIKA_COUNTER_ID = 112191143;
+const funnelEventsSeen = new Set();
+
+const trackFunnelEvent = (name, params = {}, oncePerSession = false) => {
+  const storageKey = `bulldog-metrika-${name}`;
+  if (oncePerSession) {
+    try {
+      if (sessionStorage.getItem(storageKey) === '1') return;
+      sessionStorage.setItem(storageKey, '1');
+    } catch (error) {
+      if (funnelEventsSeen.has(name)) return;
+      funnelEventsSeen.add(name);
+    }
+  }
+  window.dispatchEvent(new CustomEvent('bulldog:funnel', { detail: { name, params } }));
+  if (typeof window.ym === 'function') window.ym(METRIKA_COUNTER_ID, 'reachGoal', name, params);
+};
+
 const modes = {
   ball: { badge: 'ОСНОВНОЙ РЕЖИМ', title: 'Точная тренировочная стрельба', text: 'В барабан устанавливаются совместимые монтажные патроны, а с передней части — резиновые шары диаметром 10 мм. Используйте только в специально предназначенных и безопасных условиях.', value: '10 мм', label: 'Диаметр резинового шара', image: 'mode-rubber.webp', alt: 'БУЛЬДОГ KURS в режиме стрельбы резиновыми шарами' },
   blank: { badge: 'ЗВУКОВОЙ СИГНАЛ', title: 'Холостой выстрел до 120 дБ', text: 'БУЛЬДОГ можно использовать без резиновых шаров — только с совместимыми монтажными патронами. Обязательно используйте средства защиты слуха и соблюдайте дистанцию.', value: '120 дБ', label: 'Громкость холостого режима', image: 'mode-blank.webp', alt: 'БУЛЬДОГ KURS в холостом режиме' },
@@ -7,8 +25,14 @@ const modes = {
 const ageGate = document.querySelector('#ageGate');
 const unlock = () => { ageGate.classList.add('is-hidden'); document.body.classList.remove('age-locked'); sessionStorage.setItem('bulldog-age-ok', '1'); };
 if (sessionStorage.getItem('bulldog-age-ok') === '1') unlock();
-document.querySelector('#ageYes').addEventListener('click', unlock);
-document.querySelector('#ageNo').addEventListener('click', () => { window.location.href = 'https://www.google.ru/'; });
+document.querySelector('#ageYes').addEventListener('click', () => {
+  trackFunnelEvent('age_confirmed', {}, true);
+  unlock();
+});
+document.querySelector('#ageNo').addEventListener('click', () => {
+  trackFunnelEvent('age_rejected', {}, true);
+  window.setTimeout(() => { window.location.href = 'https://www.google.ru/'; }, 400);
+});
 
 const observer = new IntersectionObserver((entries) => entries.forEach(entry => {
   if (!entry.isIntersecting) return;
@@ -66,6 +90,24 @@ nav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closeMenu(); });
 window.addEventListener('resize', () => { if (window.innerWidth > 980) closeMenu(); }, { passive: true });
 
+document.querySelectorAll('a[href="#order"]').forEach(link => link.addEventListener('click', () => {
+  let source = 'content';
+  if (link.closest('.header')) source = 'header';
+  else if (link.closest('.hero')) source = 'hero';
+  else if (link.closest('.quick-cylinder')) source = 'quick_action';
+  else if (link.closest('.final-cta')) source = 'final_cta';
+  trackFunnelEvent('order_cta_click', { source });
+}));
+
+document.querySelectorAll('a[href^="mailto:"], a[href^="tel:"], a[href*="t.me/"], a[href*="wa.me/"]').forEach(link => link.addEventListener('click', () => {
+  let channel = 'messenger';
+  if (link.href.startsWith('mailto:')) channel = 'email';
+  else if (link.href.startsWith('tel:')) channel = 'phone';
+  else if (link.href.includes('t.me/')) channel = 'telegram';
+  else if (link.href.includes('wa.me/')) channel = 'whatsapp';
+  trackFunnelEvent('contact_click', { channel });
+}));
+
 document.querySelectorAll('.faq details').forEach(item => item.addEventListener('toggle', () => {
   if (!item.open) return;
   document.querySelectorAll('.faq details').forEach(other => { if (other !== item) other.removeAttribute('open'); });
@@ -80,6 +122,14 @@ document.querySelector('.gallery__close').addEventListener('click', () => galler
 gallery.addEventListener('click', event => { if (event.target === gallery) gallery.close(); });
 
 const form = document.querySelector('#orderForm'); const toast = document.querySelector('#toast');
+const formViewObserver = new IntersectionObserver(entries => {
+  if (!entries.some(entry => entry.isIntersecting)) return;
+  trackFunnelEvent('order_form_view', {}, true);
+  formViewObserver.disconnect();
+}, { threshold: .25 });
+formViewObserver.observe(form);
+form.addEventListener('input', () => trackFunnelEvent('order_form_start', {}, true), { capture: true });
+form.addEventListener('change', () => trackFunnelEvent('order_form_start', {}, true), { capture: true });
 const orderSubmitButton = form.querySelector('button[type="submit"]');
 const orderSubmitDefault = orderSubmitButton.innerHTML;
 const productPriceBlocks = document.querySelectorAll('.js-product-price');
@@ -98,6 +148,7 @@ const renderStock = result => {
     stockState = 'unavailable';
     orderSubmitButton.disabled = true;
     orderSubmitButton.innerHTML = 'Остаток недоступен';
+    trackFunnelEvent('stock_unavailable', { reason: 'not_synced' }, true);
     return;
   }
   if (result.available > 0) {
@@ -110,6 +161,7 @@ const renderStock = result => {
     stockState = 'out';
     orderSubmitButton.disabled = true;
     orderSubmitButton.innerHTML = 'Нет в наличии';
+    trackFunnelEvent('stock_unavailable', { reason: 'out_of_stock' }, true);
   }
 };
 const loadStock = async () => {
@@ -207,12 +259,18 @@ const calculateDelivery = async (silent = false) => {
     }
     deliveryQuotePvz.hidden = false;
     deliveryQuote.classList.add('is-ready');
+    trackFunnelEvent('delivery_calculated', {
+      delivery_type: delivery,
+      delivery_amount: Number(result.delivery_amount) || 0,
+      destination: result.pvz ? 'pvz' : 'courier'
+    }, true);
     return true;
   } catch (error) {
     if (error.name === 'AbortError') return false;
     invalidateDeliveryQuote();
     deliveryQuote.classList.add('is-error');
     deliveryQuoteStatus.textContent = error.message || 'Не удалось рассчитать доставку.';
+    trackFunnelEvent('delivery_error', { delivery_type: delivery }, true);
     if (!silent) showToast('Расчёт СДЭК не выполнен', deliveryQuoteStatus.textContent, 'error');
     return false;
   } finally {
@@ -254,6 +312,7 @@ form.addEventListener('submit', async event => {
   const originalButton = button.innerHTML;
   const data = Object.fromEntries(new FormData(form).entries());
   data.idempotency_key = orderKey;
+  trackFunnelEvent('order_submit', { delivery_type: data.delivery });
   button.disabled = true;
   button.innerHTML = 'Отправляем… <span>→</span>';
   form.setAttribute('aria-busy', 'true');
@@ -269,12 +328,18 @@ form.addEventListener('submit', async event => {
     if (!response.ok || !result.ok) throw new Error(result.message || 'Не удалось отправить заявку. Попробуйте ещё раз.');
 
     showToast('Заказ № ' + result.order_number + ' оформлен', 'Оплата товара и доставки — при получении в ПВЗ СДЭК.');
+    trackFunnelEvent('order_success', {
+      order_price: (Number(result.total) || 0) + (Number(result.delivery_amount) || 0),
+      currency: 'RUB',
+      delivery_type: data.delivery
+    });
     form.reset();
     invalidateDeliveryQuote();
     deliveryQuoteStatus.textContent = 'Укажите город и адрес — найдём ближайший ПВЗ.';
     orderKey = createOrderKey();
     await loadStock();
   } catch (error) {
+    trackFunnelEvent('order_error');
     showToast('Заявка не отправлена', error.message || 'Проверьте соединение и повторите попытку.', 'error');
   } finally {
     if (stockState === 'available') {
