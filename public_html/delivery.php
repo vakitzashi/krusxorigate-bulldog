@@ -35,7 +35,7 @@ try {
     $errors = array();
     if (mb_strlen($city, 'UTF-8') < 2) $errors['city'] = 'Укажите город.';
     if (mb_strlen($address, 'UTF-8') < 5) $errors['address'] = 'Укажите полный адрес.';
-    if (!in_array($deliveryType, array('ПВЗ', 'Курьер'), true)) $errors['delivery'] = 'Выберите способ доставки.';
+    if ($deliveryType !== 'ПВЗ') $errors['delivery'] = 'Доступна доставка только до ПВЗ СДЭК.';
     if (!empty($errors)) {
         fail_response(422, 'Уточните данные для расчёта доставки.', $errors);
     }

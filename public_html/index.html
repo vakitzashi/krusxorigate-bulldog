@@ -358,12 +358,12 @@
         <div class="order__copy reveal">
           <p class="eyebrow">Один товар. Никакой путаницы.</p>
           <h2>Заказать<br><span>проще простого.</span></h2>
-          <p>Оставьте контакты — мы уточним детали, подберём ближайший пункт СДЭК и пришлём ссылку на оплату.</p>
-          <ol class="order-flow"><li><b>01</b><span>Заявка<small>Имя и телефон</small></span></li><li><b>02</b><span>СДЭК<small>Удобный пункт или курьер</small></span></li><li><b>03</b><span>Оплата<small>Защищённая ссылка</small></span></li></ol>
-          <div class="delivery-line"><span>CDEK</span><p><b>Доставка по России</b><small>Стоимость и срок рассчитаем перед оплатой</small></p></div>
+          <p>Оставьте контакты — мы рассчитаем доставку, подберём ближайший пункт СДЭК и оформим заказ с оплатой при получении.</p>
+          <ol class="order-flow"><li><b>01</b><span>Заказ<small>Контакты и адрес</small></span></li><li><b>02</b><span>СДЭК<small>Ближайший пункт выдачи</small></span></li><li><b>03</b><span>Оплата<small>В ПВЗ при получении</small></span></li></ol>
+          <div class="delivery-line"><span>CDEK</span><p><b>Доставка по России</b><small>Товар и доставка оплачиваются при получении в ПВЗ</small></p></div>
           <div class="delivery-quote" id="deliveryQuote" aria-live="polite">
             <div class="delivery-quote__head"><span>Расчёт СДЭК</span><b id="deliveryQuoteAmount">—</b></div>
-            <p id="deliveryQuoteStatus">Укажите город, адрес и способ получения в форме.</p>
+            <p id="deliveryQuoteStatus">Укажите город и адрес — найдём ближайший ПВЗ.</p>
             <div class="delivery-quote__pvz" id="deliveryQuotePvz" hidden></div>
             <button type="button" id="calculateDelivery">Рассчитать доставку <span>→</span></button>
           </div>
@@ -371,21 +371,21 @@
         <div class="order__purchase">
         <form class="order-form reveal" id="orderForm" novalidate>
           <input name="delivery_quote" id="deliveryQuoteToken" type="hidden" value="">
-          <div class="order-form__head"><span>Заявка на БУЛЬДОГ KURS</span><b>Шаг 1 из 1</b></div>
+          <div class="order-form__head"><span>Заказ БУЛЬДОГ KURS</span><b>Шаг 1 из 1</b></div>
           <label>ФИО<input name="name" type="text" placeholder="Иванов Иван Иванович" autocomplete="name" minlength="5" maxlength="120" required></label>
           <div class="order-form__row">
             <label>Телефон<input name="phone" type="tel" inputmode="tel" placeholder="+7 999 000-00-00" autocomplete="tel" maxlength="30" required></label>
             <label>Email<input name="email" type="email" inputmode="email" placeholder="mail@example.ru" autocomplete="email" maxlength="190" required></label>
           </div>
           <label>Город доставки<input name="city" type="text" placeholder="Москва" autocomplete="address-level2" required></label>
-          <label class="select-label">Способ получения<select name="delivery" required><option value="ПВЗ">Пункт выдачи СДЭК</option><option value="Курьер">Курьер СДЭК</option></select></label>
-          <label>Адрес или ПВЗ СДЭК<input name="address" type="text" placeholder="Адрес пункта выдачи или доставки" autocomplete="street-address" maxlength="250" required></label>
+          <label class="select-label">Способ получения<select name="delivery" required><option value="ПВЗ">Пункт выдачи СДЭК · оплата при получении</option></select></label>
+          <label>Адрес для поиска ближайшего ПВЗ<input name="address" type="text" placeholder="Улица, дом" autocomplete="street-address" maxlength="250" required></label>
           <label>Комментарий<textarea name="comment" placeholder="Дополнительная информация к заказу" maxlength="1000" rows="3"></textarea></label>
           <label>Промокод<input name="promo_code" type="text" placeholder="Если есть" maxlength="40" autocapitalize="characters"></label>
           <div class="order-form__trap" aria-hidden="true"><label>Ваш сайт<input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
           <label class="checkbox"><input name="consent" type="checkbox" value="1" required><span>Я старше 18 лет и согласен на обработку персональных данных в соответствии с <a href="privacy.html" target="_blank">Политикой конфиденциальности</a></span></label>
-          <button class="button button--primary" type="submit">Отправить заявку <span>→</span></button>
-          <small>Нажимая кнопку, вы отправляете заявку продавцу. Менеджер свяжется с вами для подтверждения.</small>
+          <button class="button button--primary" type="submit">Оформить заказ <span>→</span></button>
+          <small>Оплата товара и доставки — в выбранном ПВЗ СДЭК при получении. Менеджер свяжется с вами для подтверждения.</small>
         </form>
         <div class="product-price js-product-price reveal" aria-label="Цена товара 55 000 рублей">
           <div><span>Цена БУЛЬДОГ KURS</span><small>Доставка рассчитывается отдельно</small></div>

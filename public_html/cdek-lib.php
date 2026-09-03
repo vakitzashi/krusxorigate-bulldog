@@ -277,11 +277,13 @@ function cdek_random_token()
     return bin2hex($bytes);
 }
 
-function cdek_create_shipment($config, $secretRoot, $order)
+function cdek_build_shipment_payload($config, $order)
 {
-    if (empty($config['cdek']['create_shipments'])) {
-        return array('created' => false, 'reason' => 'feature_flag_disabled');
+    if ($order['delivery_type'] !== 'ПВЗ' || trim((string) $order['pvz_code']) === '') {
+        throw new InvalidArgumentException('Production CDEK orders require a pickup point.');
     }
+    $productAmount = max(0, (int) $order['subtotal'] - (int) $order['discount_amount']);
+    $deliveryAmount = max(0, (int) $order['delivery_amount']);
     $package = $config['cdek']['package'];
     $payload = array(
         'type' => 1,
@@ -294,11 +296,8 @@ function cdek_create_shipment($config, $secretRoot, $order)
             'city' => $config['cdek']['origin']['city'],
             'address' => $config['cdek']['origin']['address']
         ),
-        'to_location' => array(
-            'code' => (int) $order['cdek_city_code'],
-            'city' => $order['city'],
-            'address' => $order['delivery_type'] === 'ПВЗ' ? $order['pvz_address'] : $order['address']
-        ),
+        'delivery_point' => $order['pvz_code'],
+        'delivery_recipient_cost' => array('value' => $deliveryAmount),
         'sender' => array(
             'company' => 'ООО «ОРИГЕЙТ»',
             'name' => 'ООО «ОРИГЕЙТ»',
@@ -319,17 +318,30 @@ function cdek_create_shipment($config, $secretRoot, $order)
             'items' => array(array(
                 'name' => $order['product_name'],
                 'ware_key' => $order['sku'],
-                'payment' => array('value' => 0),
-                'cost' => (int) $order['subtotal'],
+                'payment' => array('value' => $productAmount),
+                'cost' => $productAmount,
                 'weight' => (int) $package['weight_g'],
                 'amount' => 1
             ))
         ))
     );
-    if ($order['delivery_type'] === 'ПВЗ') {
-        $payload['delivery_point'] = $order['pvz_code'];
+    return $payload;
+}
+
+function cdek_create_shipment($config, $secretRoot, $order)
+{
+    if (empty($config['cdek']['create_shipments'])) {
+        return array('created' => false, 'reason' => 'feature_flag_disabled');
     }
+    $payload = cdek_build_shipment_payload($config, $order);
     $response = cdek_api_request($config, $secretRoot, 'POST', '/orders', array(), $payload);
+    if (!empty($response['requests']) && is_array($response['requests'])) {
+        foreach ($response['requests'] as $request) {
+            if (!empty($request['errors']) || (isset($request['state']) && strtoupper((string) $request['state']) === 'INVALID')) {
+                throw new RuntimeException('CDEK rejected the shipment: ' . json_encode($request, JSON_UNESCAPED_UNICODE));
+            }
+        }
+    }
     if (empty($response['entity']['uuid'])) {
         throw new RuntimeException('CDEK did not return a shipment UUID.');
     }

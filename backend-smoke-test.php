@@ -24,8 +24,12 @@ expect_true(!in_array('#️⃣ ТОВАРА', sheet_headers(), true), 'The forbi
 $config = array(
     'product' => array('name' => 'Револьвер Бульдог KURS кал.5.6/16 КСОИ', 'sku' => '00000050201', 'price' => 55000),
     'promo_codes' => array('TEST10' => array('percent' => 10)),
-    'cdek' => array('create_shipments' => false),
-    'one_c' => array('export_orders' => false)
+    'cdek' => array(
+        'create_shipments' => false,
+        'package' => array('weight_g' => 1480, 'length_cm' => 35, 'width_cm' => 25, 'height_cm' => 10)
+    ),
+    'one_c' => array('export_orders' => false),
+    'google' => array('webhook_secret' => 'test-order-rate-secret')
 );
 $input = array(
     'name' => 'Иван Григорян Олегович',
@@ -66,6 +70,11 @@ expect_true($validated['cdek_status'] === 'disabled', 'Shipment creation must re
 expect_true($validated['onec_status'] === 'disabled', '1C order export must remain disabled by the feature flag.');
 $shipment = cdek_create_shipment($config, sys_get_temp_dir(), $validated);
 expect_true(!$shipment['created'] && $shipment['reason'] === 'feature_flag_disabled', 'The feature flag must block POST /orders.');
+$shipmentPayload = cdek_build_shipment_payload($config, $validated);
+expect_true($shipmentPayload['delivery_point'] === 'ABN1' && !isset($shipmentPayload['to_location']), 'A pickup-point order must use delivery_point without a conflicting to_location.');
+expect_true((int) $shipmentPayload['packages'][0]['items'][0]['payment']['value'] === 49500, 'CDEK COD must equal the discounted product price.');
+expect_true((int) $shipmentPayload['delivery_recipient_cost']['value'] === 600, 'CDEK delivery must be charged to the recipient separately.');
+expect_true((int) $shipmentPayload['packages'][0]['weight'] === 1480 && (int) $shipmentPayload['packages'][0]['length'] === 35 && (int) $shipmentPayload['packages'][0]['width'] === 25 && (int) $shipmentPayload['packages'][0]['height'] === 10, 'CDEK shipment must use the configured package dimensions.');
 
 $databasePath = tempnam(sys_get_temp_dir(), 'bulldog-order-test-');
 $db = open_database($databasePath);
@@ -80,6 +89,16 @@ $adminConfig['admin'] = array('username' => 'Admin', 'password_hash' => password
 list($adminLoggedIn, $adminError) = admin_login($db, $adminConfig, 'Admin', 'test-password');
 expect_true($adminLoggedIn && $adminError === '', 'Admin login must accept a valid bcrypt-protected credential.');
 expect_true((int) $db->query('SELECT COUNT(*) FROM admin_sessions')->fetchColumn() === 1, 'Admin login must create a server-side session.');
+$inventoryUnavailableBlocked = false;
+try {
+    insert_order($db, $validated);
+} catch (InventoryUnavailableException $exception) {
+    $inventoryUnavailableBlocked = true;
+}
+expect_true($inventoryUnavailableBlocked, 'An unavailable 1C balance must fail closed.');
+ensure_inventory_row($db, $validated['sku']);
+$db->prepare("UPDATE product_inventory SET quantity = 3, sync_state = 'synced', synced_at = CURRENT_TIMESTAMP WHERE sku = :sku")
+    ->execute(array(':sku' => $validated['sku']));
 $first = insert_order($db, $validated);
 expect_true($first['order_number'] === '000001', 'First internal order number must be 000001.');
 expect_true(find_order($db, $validated['idempotency_key'])['id'] === $first['id'], 'Idempotency lookup must return the existing order.');
@@ -127,6 +146,33 @@ $message = telegram_message($first);
 expect_true(strpos($message, 'Оформлен новый заказ!') !== false, 'Telegram message title is missing.');
 expect_true(strpos($message, '000001') !== false, 'Telegram message order number is missing.');
 expect_true(strpos($message, '600 ₽') !== false, 'Telegram message must include the delivery amount.');
+$db->prepare("UPDATE product_inventory SET quantity = 10, sync_state = 'synced', synced_at = CURRENT_TIMESTAMP WHERE sku = :sku")
+    ->execute(array(':sku' => $validated['sku']));
+$secondAllowed = $validated;
+$secondAllowed['idempotency_key'] = '32345678-1234-1234-1234-123456789012';
+insert_order($db, $secondAllowed);
+$samePhone = $validated;
+$samePhone['idempotency_key'] = '42345678-1234-1234-1234-123456789012';
+$samePhone['_rate_ip_hash'] = order_rate_hash($config, 'ip', '198.51.100.2');
+$samePhone['_rate_email_hash'] = order_rate_hash($config, 'email', 'another@example.com');
+$phoneLimitBlocked = false;
+try {
+    insert_order($db, $samePhone);
+} catch (OrderRateLimitException $exception) {
+    $phoneLimitBlocked = true;
+}
+expect_true($phoneLimitBlocked, 'A changed IP and email must not bypass the daily phone limit.');
+$sameEmail = $validated;
+$sameEmail['idempotency_key'] = '52345678-1234-1234-1234-123456789012';
+$sameEmail['_rate_ip_hash'] = order_rate_hash($config, 'ip', '198.51.100.3');
+$sameEmail['_rate_phone_hash'] = order_rate_hash($config, 'phone', '+79990000000');
+$emailLimitBlocked = false;
+try {
+    insert_order($db, $sameEmail);
+} catch (OrderRateLimitException $exception) {
+    $emailLimitBlocked = true;
+}
+expect_true($emailLimitBlocked, 'A changed IP and phone must not bypass the daily email limit.');
 
 $db = null;
 @unlink($databasePath);

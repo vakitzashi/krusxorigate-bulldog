@@ -17,7 +17,7 @@ try {
     $db = open_database($config['database']);
     $config = load_commerce_config($db, $config);
     $inventory = inventory_row($db, $config['product']['sku'], false);
-    $synced = $inventory && $inventory['sync_state'] === 'synced';
+    $synced = $inventory && $inventory['sync_state'] === 'synced' && $inventory['synced_at'] !== null;
     json_response(200, array(
         'ok' => true,
         'sku' => $config['product']['sku'],

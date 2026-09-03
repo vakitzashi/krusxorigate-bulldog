@@ -213,6 +213,16 @@ function open_database($target)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
         $db->exec(
+            'CREATE TABLE IF NOT EXISTS order_rate_limits (
+                rate_date DATE NOT NULL,
+                entity_type VARCHAR(16) NOT NULL,
+                entity_hash CHAR(64) NOT NULL,
+                order_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (rate_date, entity_type, entity_hash)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+        $db->exec(
             'CREATE TABLE IF NOT EXISTS product_inventory (
                 sku VARCHAR(64) NOT NULL,
                 quantity INT UNSIGNED NOT NULL DEFAULT 0,
@@ -403,6 +413,7 @@ function open_database($target)
     $db->exec('CREATE TABLE IF NOT EXISTS promo_codes (code TEXT PRIMARY KEY, discount_type TEXT NOT NULL, discount_value REAL NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at TEXT, updated_at TEXT)');
     $db->exec('CREATE TABLE IF NOT EXISTS admin_sessions (session_hash TEXT PRIMARY KEY, username TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT, last_seen_at TEXT)');
     $db->exec('CREATE TABLE IF NOT EXISTS admin_login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, client_hash TEXT NOT NULL, success INTEGER NOT NULL DEFAULT 0, created_at TEXT)');
+    $db->exec('CREATE TABLE IF NOT EXISTS order_rate_limits (rate_date TEXT NOT NULL, entity_type TEXT NOT NULL, entity_hash TEXT NOT NULL, order_count INTEGER NOT NULL DEFAULT 0, updated_at TEXT, PRIMARY KEY (rate_date, entity_type, entity_hash))');
     if (is_file($target)) {
         @chmod($target, 0600);
     }
@@ -482,6 +493,14 @@ class OutOfStockException extends RuntimeException
 {
 }
 
+class InventoryUnavailableException extends RuntimeException
+{
+}
+
+class OrderRateLimitException extends RuntimeException
+{
+}
+
 function ensure_inventory_row($db, $sku)
 {
     if ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
@@ -507,6 +526,52 @@ function inventory_row($db, $sku, $forUpdate)
     return $row ? $row : null;
 }
 
+function order_rate_hash($config, $type, $value)
+{
+    $secret = isset($config['google']['webhook_secret']) ? (string) $config['google']['webhook_secret'] : '';
+    if ($secret === '') throw new RuntimeException('Order rate-limit secret is unavailable.');
+    return hash_hmac('sha256', $type . '|' . mb_strtolower(trim((string) $value), 'UTF-8'), $secret);
+}
+
+function enforce_order_rate_limits($db, $order)
+{
+    $date = date('Y-m-d');
+    $entities = array(
+        'ip' => $order['_rate_ip_hash'],
+        'phone' => $order['_rate_phone_hash'],
+        'email' => $order['_rate_email_hash']
+    );
+    foreach ($entities as $type => $hash) {
+        if ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+            $statement = $db->prepare(
+                'INSERT INTO order_rate_limits (rate_date, entity_type, entity_hash, order_count)
+                 VALUES (:rate_date, :entity_type, :entity_hash, 1)
+                 ON DUPLICATE KEY UPDATE order_count = order_count + 1'
+            );
+            $statement->execute(array(':rate_date' => $date, ':entity_type' => $type, ':entity_hash' => $hash));
+        } else {
+            $insert = $db->prepare(
+                'INSERT OR IGNORE INTO order_rate_limits (rate_date, entity_type, entity_hash, order_count, updated_at)
+                 VALUES (:rate_date, :entity_type, :entity_hash, 0, CURRENT_TIMESTAMP)'
+            );
+            $insert->execute(array(':rate_date' => $date, ':entity_type' => $type, ':entity_hash' => $hash));
+            $statement = $db->prepare(
+                'UPDATE order_rate_limits SET order_count = order_count + 1, updated_at = CURRENT_TIMESTAMP
+                 WHERE rate_date = :rate_date AND entity_type = :entity_type AND entity_hash = :entity_hash'
+            );
+            $statement->execute(array(':rate_date' => $date, ':entity_type' => $type, ':entity_hash' => $hash));
+        }
+        $count = $db->prepare(
+            'SELECT order_count FROM order_rate_limits
+             WHERE rate_date = :rate_date AND entity_type = :entity_type AND entity_hash = :entity_hash'
+        );
+        $count->execute(array(':rate_date' => $date, ':entity_type' => $type, ':entity_hash' => $hash));
+        if ((int) $count->fetchColumn() > 2) {
+            throw new OrderRateLimitException('Daily order limit exceeded.');
+        }
+    }
+}
+
 function mark_delivery_quote_used($db, $token, $orderId)
 {
     $statement = $db->prepare(
@@ -520,9 +585,13 @@ function insert_order($db, $order)
     $db->beginTransaction();
     try {
         $inventory = inventory_row($db, $order['sku'], true);
-        if ($inventory['sync_state'] === 'synced' && (int) $inventory['available'] < (int) $order['quantity']) {
+        if (!$inventory || $inventory['sync_state'] !== 'synced' || $inventory['synced_at'] === null) {
+            throw new InventoryUnavailableException('Inventory is not synchronized.');
+        }
+        if ((int) $inventory['available'] < (int) $order['quantity']) {
             throw new OutOfStockException('Product is out of stock.');
         }
+        enforce_order_rate_limits($db, $order);
         $statement = $db->prepare(
             'INSERT INTO orders (
                 order_number, idempotency_key, created_at, created_msk, status,
@@ -544,7 +613,7 @@ function insert_order($db, $order)
         );
         $params = array();
         foreach ($order as $key => $value) {
-            if ($key !== 'order_number') {
+            if ($key !== 'order_number' && strpos($key, '_rate_') !== 0) {
                 $params[':' . $key] = $value;
             }
         }
@@ -712,6 +781,7 @@ function telegram_message($order)
         . "📍 <b>Адрес/ПВЗ:</b> " . html_value($destination) . "\n"
         . "🚚 <b>Доставка:</b> " . html_value($delivery) . "\n"
         . "💳 <b>Стоимость доставки:</b> " . html_value(money_text($order['delivery_amount'])) . "\n"
+        . "💰 <b>Оплата:</b> при получении в ПВЗ СДЭК\n"
         . "💬 <b>Комментарий:</b> " . html_value($comment) . "\n\n"
         . "📦 <b>Товары:</b>\n\n" . html_value($product) . "\n\n"
         . "🧾 <b>Сумма:</b> " . html_value(money_text($order['total'])) . "\n"
@@ -758,7 +828,7 @@ function validate_order_input($input, $config, $quote)
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors['email'] = 'Проверьте email.';
     if (mb_strlen($city, 'UTF-8') < 2) $errors['city'] = 'Укажите город.';
     if (mb_strlen($address, 'UTF-8') < 5) $errors['address'] = 'Укажите адрес или ПВЗ.';
-    if (!in_array($delivery, array('Курьер', 'ПВЗ'), true)) $errors['delivery'] = 'Выберите способ доставки.';
+    if ($delivery !== 'ПВЗ') $errors['delivery'] = 'Доступна доставка только до ПВЗ СДЭК.';
     if ($consent !== '1') $errors['consent'] = 'Необходимо подтвердить возраст и согласие.';
     if (!preg_match('/^[A-Za-z0-9-]{20,100}$/', $key)) $errors['idempotency_key'] = 'Обновите страницу и повторите отправку.';
     if (!is_array($quote) || $quoteToken === '' || !hash_equals((string) $quote['quote_token'], $quoteToken)) {
@@ -767,6 +837,8 @@ function validate_order_input($input, $config, $quote)
         $errors['delivery_quote'] = 'Адрес изменился. Рассчитайте доставку заново.';
     } elseif (!empty($quote['used_order_id'])) {
         $errors['delivery_quote'] = 'Расчёт доставки уже использован. Выполните новый расчёт.';
+    } elseif ($quote['pvz_code'] === '' || $quote['pvz_address'] === '') {
+        $errors['delivery_quote'] = 'СДЭК не вернул пункт выдачи. Рассчитайте доставку заново.';
     }
 
     $price = (int) $config['product']['price'];
@@ -795,9 +867,13 @@ function validate_order_input($input, $config, $quote)
 
     $deliveryAmount = (int) $quote['delivery_amount'];
     $now = new DateTimeImmutable('now', new DateTimeZone('Europe/Moscow'));
+    $clientIp = isset($_SERVER['REMOTE_ADDR']) && $_SERVER['REMOTE_ADDR'] !== '' ? (string) $_SERVER['REMOTE_ADDR'] : 'unknown';
     return array(
         'order_number' => null,
         'idempotency_key' => $key,
+        '_rate_ip_hash' => order_rate_hash($config, 'ip', $clientIp),
+        '_rate_phone_hash' => order_rate_hash($config, 'phone', $phone),
+        '_rate_email_hash' => order_rate_hash($config, 'email', $email),
         'created_at' => $now->format(DateTime::ATOM),
         'created_msk' => $now->format('d.m.Y — H:i'),
         'status' => 'Новый',
@@ -927,21 +1003,27 @@ try {
         }
     }
 
-    if (!empty($failures)) {
+    $integrationPending = !empty($failures);
+    if ($integrationPending) {
         error_log('Order ' . $order['order_number'] . ' integration error: ' . implode(' | ', $failures));
-        fail_response(502, 'Заказ сохранён, но уведомление не доставлено. Повторите отправку через минуту.', array());
+    } else {
+        $clearError = $db->prepare('UPDATE orders SET last_error = :error WHERE id = :id');
+        $clearError->execute(array(':error' => '', ':id' => $order['id']));
     }
-    $clearError = $db->prepare('UPDATE orders SET last_error = :error WHERE id = :id');
-    $clearError->execute(array(':error' => '', ':id' => $order['id']));
     json_response(201, array(
         'ok' => true,
         'order_number' => $order['order_number'],
         'status' => 'Новый',
         'delivery_amount' => (int) $order['delivery_amount'],
-        'total' => (int) $order['total']
+        'total' => (int) $order['total'],
+        'integration_pending' => $integrationPending
     ));
 } catch (OutOfStockException $exception) {
     fail_response(409, 'Товар закончился. Отправка заявки временно недоступна.', array('stock' => 'Нет в наличии.'));
+} catch (InventoryUnavailableException $exception) {
+    fail_response(503, 'Не удалось подтвердить актуальный остаток. Оформление заказа временно недоступно.', array('stock' => 'Остаток не подтверждён.'));
+} catch (OrderRateLimitException $exception) {
+    fail_response(429, 'Превышен лимит: не более двух заказов в сутки с одного IP, телефона или email.', array());
 } catch (Exception $exception) {
     error_log('Order API error: ' . $exception->getMessage());
     fail_response(503, 'Сервис оформления временно недоступен. Попробуйте позже.', array());

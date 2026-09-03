@@ -85,6 +85,8 @@ const orderSubmitDefault = orderSubmitButton.innerHTML;
 const productPriceBlocks = document.querySelectorAll('.js-product-price');
 const productPriceValues = document.querySelectorAll('.js-product-price-value');
 let stockState = 'unknown';
+orderSubmitButton.disabled = true;
+orderSubmitButton.innerHTML = 'Проверяем наличие…';
 const renderStock = result => {
   if (Number.isFinite(Number(result?.price)) && Number(result.price) > 0) {
     const currentPrice = Number(result.price);
@@ -93,11 +95,9 @@ const renderStock = result => {
     productPriceBlocks.forEach(element => { element.setAttribute('aria-label', 'Цена товара ' + currentPrice + ' рублей'); });
   }
   if (!result?.synced) {
-    stockState = 'unknown';
-    if (!form.hasAttribute('aria-busy')) {
-      orderSubmitButton.disabled = false;
-      orderSubmitButton.innerHTML = orderSubmitDefault;
-    }
+    stockState = 'unavailable';
+    orderSubmitButton.disabled = true;
+    orderSubmitButton.innerHTML = 'Остаток недоступен';
     return;
   }
   if (result.available > 0) {
@@ -120,6 +120,7 @@ const loadStock = async () => {
     renderStock(result);
     return result;
   } catch (error) {
+    renderStock({ synced: false });
     return null;
   }
 };
@@ -238,8 +239,9 @@ form.addEventListener('submit', async event => {
   if (!form.reportValidity()) return;
 
   await loadStock();
-  if (stockState === 'out') {
-    showToast('Товар закончился', 'Отправка заявки временно недоступна.', 'error');
+  if (stockState !== 'available') {
+    const unavailable = stockState === 'unavailable' || stockState === 'unknown';
+    showToast(unavailable ? 'Остаток не подтверждён' : 'Товар закончился', 'Оформление заказа временно недоступно.', 'error');
     return;
   }
 
@@ -266,16 +268,16 @@ form.addEventListener('submit', async event => {
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.ok) throw new Error(result.message || 'Не удалось отправить заявку. Попробуйте ещё раз.');
 
-    showToast('Заказ № ' + result.order_number + ' оформлен', 'Заявка принята. Мы свяжемся с вами для подтверждения.');
+    showToast('Заказ № ' + result.order_number + ' оформлен', 'Оплата товара и доставки — при получении в ПВЗ СДЭК.');
     form.reset();
     invalidateDeliveryQuote();
-    deliveryQuoteStatus.textContent = 'Укажите город, адрес и способ получения в форме.';
+    deliveryQuoteStatus.textContent = 'Укажите город и адрес — найдём ближайший ПВЗ.';
     orderKey = createOrderKey();
     await loadStock();
   } catch (error) {
     showToast('Заявка не отправлена', error.message || 'Проверьте соединение и повторите попытку.', 'error');
   } finally {
-    if (stockState !== 'out') {
+    if (stockState === 'available') {
       button.disabled = false;
       button.innerHTML = originalButton;
     }
