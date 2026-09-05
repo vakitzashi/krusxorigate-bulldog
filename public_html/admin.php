@@ -84,7 +84,7 @@ $notice = isset($noticeMap[$noticeKey]) ? $noticeMap[$noticeKey] : '';
 
 if (!isset($session) || !$session) {
 ?><!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход — ORIGATE TACTIC</title><link rel="icon" href="favicon.png"><link rel="stylesheet" href="admin.css?v=20260830-1"></head>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход — ORIGATE TACTIC</title><link rel="icon" href="favicon.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="admin.css?v=20260905-1"></head>
 <body class="admin-login"><main class="login-card"><img src="kursXorigate.png" alt="KURS × ORIGATE"><p class="eyebrow">Закрытая зона</p><h1>Управление<br><em>БУЛЬДОГ</em></h1><p>Войдите, чтобы управлять продажами.</p>
 <?php if ($notice): ?><div class="alert alert--ok"><?php echo admin_escape($notice); ?></div><?php endif; ?>
 <?php if ($error): ?><div class="alert alert--error"><?php echo admin_escape($error); ?></div><?php endif; ?>
@@ -99,7 +99,7 @@ $available = $inventory ? max(0, (int) $inventory['available']) : 0;
 $synced = $inventory && $inventory['sync_state'] === 'synced';
 $price = (int) $config['product']['price'];
 ?><!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Админка — ORIGATE TACTIC</title><link rel="icon" href="favicon.png"><link rel="stylesheet" href="admin.css?v=20260830-1"></head>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Админка — ORIGATE TACTIC</title><link rel="icon" href="favicon.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="admin.css?v=20260905-1"></head>
 <body><header class="admin-header"><a href="index.html"><img src="kursXorigate.png" alt="KURS × ORIGATE"></a><div><span><?php echo admin_escape($session['username']); ?></span><form method="post" action="admin.php"><input type="hidden" name="action" value="logout"><input type="hidden" name="csrf" value="<?php echo admin_escape($csrf); ?>"><button class="link-button" type="submit">Выйти</button></form></div></header>
 <main class="dashboard"><section class="dashboard-title"><div><p class="eyebrow">Панель управления</p><h1>БУЛЬДОГ <em>KURS</em></h1><p>SKU <?php echo admin_escape($config['product']['sku']); ?></p></div><a class="site-link" href="index.html" target="_blank" rel="noopener">Открыть сайт ↗</a></section>
 <?php if ($notice): ?><div class="alert alert--ok"><?php echo admin_escape($notice); ?></div><?php endif; ?><?php if ($error): ?><div class="alert alert--error"><?php echo admin_escape($error); ?></div><?php endif; ?>
